@@ -1,0 +1,12 @@
+name = "ptone-landing"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+main = ".open-next/worker.js"
+
+[vars]
+NEXT_PUBLIC_SUPABASE_URL = "https://ffqiaodlcdcvtyzlyupi.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmcWlhb2RsY2RjdnR5emx5dXBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NzQ5NzIsImV4cCI6MjA5NDM1MDk3Mn0.wknuAcj9CEx0Mji7JFCva35MF8BgNTyuYekulRBaZ0A"
+
+[[routes]]
+pattern = "ptone.yannicksalm.ch/*"
+zone_name = "yannicksalm.ch"
