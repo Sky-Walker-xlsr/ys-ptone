@@ -1,0 +1,20 @@
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+const PUBLIC = ['/login', '/auth', '/_next', '/favicon', '/icons', '/manifest', '/offline'];
+
+export default function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  if (PUBLIC.some(p => pathname.startsWith(p))) return NextResponse.next();
+
+  // ptone_session is set by the /login page after successful auth
+  if (!request.cookies.has('ptone_session')) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+};

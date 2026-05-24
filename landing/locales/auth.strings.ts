@@ -1,0 +1,76 @@
+import type { Language } from './types';
+
+export const auth: Record<Language, Record<string, string>> = {
+  de: {
+    // Shared
+    email:           'E-Mail',
+    password:        'Passwort',
+    orDivider:       'oder',
+    googleBtn:       'Mit Google fortfahren',
+    backToHome:      'Zurück zur Startseite',
+    alreadyAccount:  'Bereits ein Konto?',
+    noAccount:       'Noch kein Konto?',
+    signIn:          'Anmelden',
+    signUp:          'Registrieren',
+    loading:         'Wird geladen…',
+
+    // Login
+    loginTitle:      'Willkommen zurück',
+    loginSub:        'Melde dich in deinem PTOne-Konto an.',
+    loginBtn:        'Anmelden',
+    forgotPassword:  'Passwort vergessen?',
+    loginError:      'E-Mail oder Passwort falsch.',
+
+    // Register
+    registerTitle:   'Konto erstellen',
+    registerSub:     'Starte kostenlos als Client.',
+    firstName:       'Vorname',
+    lastName:        'Nachname',
+    registerBtn:     'Konto erstellen',
+    passwordHint:    'Mindestens 8 Zeichen',
+    registerError:   'Registrierung fehlgeschlagen. Bitte versuche es erneut.',
+    emailExists:     'Diese E-Mail ist bereits registriert.',
+    successTitle:    'Fast geschafft!',
+    successMsg:      'Wir haben dir eine Bestätigungs-E-Mail geschickt. Bitte bestätige deine Adresse.',
+    termsNote:       'Mit der Registrierung stimmst du unseren',
+    termsLink:       'Nutzungsbedingungen',
+    termsAnd:        'und der',
+    privacyLink:     'Datenschutzerklärung',
+    termsEnd:        'zu.',
+  },
+
+  en: {
+    email:           'Email',
+    password:        'Password',
+    orDivider:       'or',
+    googleBtn:       'Continue with Google',
+    backToHome:      'Back to home',
+    alreadyAccount:  'Already have an account?',
+    noAccount:       'No account yet?',
+    signIn:          'Sign in',
+    signUp:          'Sign up',
+    loading:         'Loading…',
+
+    loginTitle:      'Welcome back',
+    loginSub:        'Sign in to your PTOne account.',
+    loginBtn:        'Sign in',
+    forgotPassword:  'Forgot password?',
+    loginError:      'Incorrect email or password.',
+
+    registerTitle:   'Create account',
+    registerSub:     'Get started for free as a client.',
+    firstName:       'First name',
+    lastName:        'Last name',
+    registerBtn:     'Create account',
+    passwordHint:    'At least 8 characters',
+    registerError:   'Registration failed. Please try again.',
+    emailExists:     'This email is already registered.',
+    successTitle:    'Almost there!',
+    successMsg:      'We sent you a confirmation email. Please confirm your address.',
+    termsNote:       'By signing up you agree to our',
+    termsLink:       'Terms of Service',
+    termsAnd:        'and',
+    privacyLink:     'Privacy Policy',
+    termsEnd:        '.',
+  },
+};

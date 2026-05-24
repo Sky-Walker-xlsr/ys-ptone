@@ -1,0 +1,7 @@
+name = "datenschutz"
+compatibility_date = "2025-04-01"
+main = "src/index.js"
+
+[[routes]]
+pattern = "datenschutz.yannicksalm.ch/*"
+zone_name = "yannicksalm.ch"

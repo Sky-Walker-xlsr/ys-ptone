@@ -1,0 +1,1063 @@
+accounting_settings
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+accounting_settings_pt_own
+ALL	
+public
+
+appointments
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+appointments_client_reads_own
+SELECT	
+public
+
+
+appointments_pt_own
+ALL	
+public
+
+body_measurement_logs
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+bml_delete_own
+DELETE	
+public
+
+
+bml_insert_own
+INSERT	
+public
+
+
+bml_insert_pt
+INSERT	
+public
+
+
+bml_select_own
+SELECT	
+public
+
+
+bml_select_pt
+SELECT	
+public
+
+
+bml_update_own
+UPDATE	
+public
+
+body_weight_logs
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+bwl_delete_own
+DELETE	
+public
+
+
+bwl_insert_own
+INSERT	
+public
+
+
+bwl_insert_pt
+INSERT	
+public
+
+
+bwl_select_own
+SELECT	
+public
+
+
+bwl_select_pt
+SELECT	
+public
+
+
+bwl_update_own
+UPDATE	
+public
+
+calendar_integrations
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+calendar_integrations_pt_own
+ALL	
+public
+
+client_folders
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+client_folders_delete_pt
+DELETE	
+public
+
+
+client_folders_insert_pt
+INSERT	
+public
+
+
+client_folders_select_client
+SELECT	
+public
+
+
+client_folders_select_pt
+SELECT	
+public
+
+
+client_folders_update_pt
+UPDATE	
+public
+
+client_profiles
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+client_profiles_insert_own
+INSERT	
+public
+
+
+client_profiles_select_own
+SELECT	
+public
+
+
+client_profiles_select_pt
+SELECT	
+public
+
+
+client_profiles_update_own
+UPDATE	
+public
+
+
+client_profiles_update_pt
+UPDATE	
+public
+
+client_settings
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+client_settings_own
+ALL	
+public
+
+contact_submissions
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+contact_submissions_insert_anon
+INSERT	
+public
+
+
+contact_submissions_pt_reads
+SELECT	
+public
+
+drive_files
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+drive_files_client_reads_shared
+SELECT	
+public
+
+
+drive_files_pt_own
+ALL	
+public
+
+drive_folders
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+drive_folders_client_reads_shared
+SELECT	
+public
+
+
+drive_folders_pt_own
+ALL	
+public
+
+equipment
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+equipment_select_all
+SELECT	
+public
+
+exercise_notes
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+exercise_notes_own
+ALL	
+public
+
+
+exercise_notes_user_all
+ALL	
+public
+
+exercise_pt_videos
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+exercise_pt_videos_delete_pt
+DELETE	
+public
+
+
+exercise_pt_videos_insert_pt
+INSERT	
+public
+
+
+exercise_pt_videos_select_client
+SELECT	
+public
+
+
+exercise_pt_videos_select_pt
+SELECT	
+public
+
+
+exercise_pt_videos_update_pt
+UPDATE	
+public
+
+exercise_types
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+exercise_types_select_all
+SELECT	
+public
+
+exercises
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+exercises_delete_own
+DELETE	
+public
+
+
+exercises_insert_client
+INSERT	
+public
+
+
+exercises_insert_exercisedb
+INSERT	
+public
+
+
+exercises_insert_pt
+INSERT	
+public
+
+
+exercises_public_read
+SELECT	
+public
+
+
+exercises_select_client_custom
+SELECT	
+public
+
+
+exercises_select_global
+SELECT	
+public
+
+
+exercises_select_pt_custom
+SELECT	
+public
+
+
+exercises_update_own
+UPDATE	
+public
+
+
+exercises_user_custom
+ALL	
+public
+
+expense_categories
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+expense_categories_pt_own
+ALL	
+public
+
+expense_receipts
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+expense_receipts_pt_own
+ALL	
+public
+
+expenses
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+expenses_pt_own
+ALL	
+public
+
+income_categories
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+income_categories_pt_own
+ALL	
+public
+
+incomes
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+incomes_pt_own
+ALL	
+public
+
+invoice_reminders
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+invoice_reminders_pt_own
+ALL	
+public
+
+invoices
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+invoices_client_reads_own
+SELECT	
+public
+
+
+invoices_pt_own
+ALL	
+public
+
+journal_assignments
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+ja_client_read
+SELECT	
+public
+
+
+ja_trainer_all
+ALL	
+public
+
+journal_categories
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+journal_categories_delete_pt
+DELETE	
+public
+
+
+journal_categories_manage_pt
+INSERT	
+public
+
+
+journal_categories_select_client
+SELECT	
+public
+
+
+journal_categories_select_pt
+SELECT	
+public
+
+
+journal_categories_update_pt
+UPDATE	
+public
+
+journal_entries
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+journal_entries_insert_client
+INSERT	
+public
+
+
+journal_entries_insert_pt
+INSERT	
+public
+
+
+journal_entries_select_client
+SELECT	
+public
+
+
+journal_entries_select_pt
+SELECT	
+public
+
+
+journal_entries_update_client
+UPDATE	
+public
+
+
+journal_entries_update_pt
+UPDATE	
+public
+
+journal_ratings
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+journal_ratings_insert_client
+INSERT	
+public
+
+
+journal_ratings_select_client
+SELECT	
+public
+
+
+journal_ratings_select_pt
+SELECT	
+public
+
+
+journal_ratings_update_client
+UPDATE	
+public
+
+journal_responses
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+jr_client_all
+ALL	
+public
+
+
+jr_pt_read
+SELECT	
+public
+
+journal_templates
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+jt_client_read
+SELECT	
+public
+
+
+jt_trainer_all
+ALL	
+public
+
+muscles
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+muscles_select_all
+SELECT	
+public
+
+notes
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+notes_client_reads_shared
+SELECT	
+public
+
+
+notes_pt_own
+ALL	
+public
+
+nutrition_plans
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+nutrition_plans_client_reads_own
+SELECT	
+public
+
+
+nutrition_plans_pt_own
+ALL	
+public
+
+offers
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+offers_client_reads_own
+SELECT	
+public
+
+
+offers_pt_own
+ALL	
+public
+
+personal_records
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+personal_records_own
+ALL	
+public
+
+
+personal_records_pt_reads_clients
+SELECT	
+public
+
+
+personal_records_user_all
+ALL	
+public
+
+plan_assignments
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+plan_assignments_client_select
+SELECT	
+public
+
+
+plan_assignments_trainer_all
+ALL	
+public
+
+plan_exercises
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+plan_exercises_assigned_client_select
+SELECT	
+public
+
+
+plan_exercises_own
+ALL	
+public
+
+
+plan_exercises_owner_all
+ALL	
+public
+
+plan_folders
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+plan_folders_owner_all
+ALL	
+public
+
+plan_sets
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+plan_sets_assigned_client_select
+SELECT	
+public
+
+
+plan_sets_own
+ALL	
+public
+
+
+plan_sets_owner_all
+ALL	
+public
+
+plan_shares
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+plan_shares_delete_pt
+DELETE	
+public
+
+
+plan_shares_insert_pt
+INSERT	
+public
+
+
+plan_shares_select_client
+SELECT	
+public
+
+
+plan_shares_select_pt
+SELECT	
+public
+
+plans
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+plans_assigned_client_select
+SELECT	
+public
+
+
+plans_own
+ALL	
+public
+
+
+plans_owner_all
+ALL	
+public
+
+profiles
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+profiles_select_client_reads_pt
+SELECT	
+public
+
+
+profiles_select_own
+SELECT	
+public
+
+
+profiles_select_pt_reads_clients
+SELECT	
+public
+
+
+profiles_select_public_pt
+SELECT	
+public
+
+
+profiles_trainer_visible_to_client
+SELECT	
+public
+
+
+profiles_update_own
+UPDATE	
+public
+
+pt_profiles
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+pt_profiles_insert_own
+INSERT	
+public
+
+
+pt_profiles_select_own
+SELECT	
+public
+
+
+pt_profiles_select_public
+SELECT	
+public
+
+
+pt_profiles_update_own
+UPDATE	
+public
+
+pt_requests
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+pt_requests_client_insert
+INSERT	
+public
+
+
+pt_requests_client_own
+SELECT	
+public
+
+
+pt_requests_pt_reads
+SELECT	
+public
+
+
+pt_requests_pt_updates
+UPDATE	
+public
+
+pt_settings
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+pt_settings_own
+ALL	
+public
+
+sets
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+sets_own
+ALL	
+public
+
+
+sets_pt_reads_clients
+SELECT	
+public
+
+
+sets_user_all
+ALL	
+public
+
+trainer_clients
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+trainer_clients_client_select
+SELECT	
+public
+
+
+trainer_clients_client_update
+UPDATE	
+public
+
+
+trainer_clients_delete_pt
+DELETE	
+public
+
+
+trainer_clients_insert_pt
+INSERT	
+public
+
+
+trainer_clients_select_client
+SELECT	
+public
+
+
+trainer_clients_select_pt
+SELECT	
+public
+
+
+trainer_clients_update_pt
+UPDATE	
+public
+
+training_plans
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+training_plans_delete_pt
+DELETE	
+public
+
+
+training_plans_insert_pt
+INSERT	
+public
+
+
+training_plans_select_client
+SELECT	
+public
+
+
+training_plans_select_pt
+SELECT	
+public
+
+
+training_plans_update_pt
+UPDATE	
+public
+
+workout_exercises
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+workout_exercises_own
+ALL	
+public
+
+
+workout_exercises_pt_reads_clients
+SELECT	
+public
+
+
+workout_exercises_user_all
+ALL	
+public
+
+workout_sessions
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+workout_sessions_own
+ALL	
+public
+
+
+workout_sessions_pt_reads_clients
+SELECT	
+public
+
+
+workout_sessions_trainer_select
+SELECT	
+public
+
+
+workout_sessions_user_all
+ALL	
+public
+
