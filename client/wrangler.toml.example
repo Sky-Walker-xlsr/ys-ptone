@@ -1,0 +1,19 @@
+name = "ptone-client"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+main = ".open-next/worker.js"
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[vars]
+NEXT_PUBLIC_SUPABASE_URL        = "https://YOUR_PROJECT.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY   = "YOUR_SUPABASE_ANON_KEY"
+SUPABASE_SERVICE_ROLE_KEY       = "YOUR_SUPABASE_SERVICE_ROLE_KEY"
+NEXT_PUBLIC_EXERCISE_SUPABASE_URL      = "https://YOUR_EXERCISE_PROJECT.supabase.co"
+NEXT_PUBLIC_EXERCISE_SUPABASE_ANON_KEY = "YOUR_EXERCISE_ANON_KEY"
+
+[[routes]]
+pattern = "ptclient.yourdomain.ch/*"
+zone_name = "yourdomain.ch"
