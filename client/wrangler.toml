@@ -1,0 +1,24 @@
+name = "ptone-client"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+main = ".open-next/worker.js"
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[vars]
+NEXT_PUBLIC_SUPABASE_URL          = "https://ffqiaodlcdcvtyzlyupi.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY     = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmcWlhb2RsY2RjdnR5emx5dXBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3NzQ5NzIsImV4cCI6MjA5NDM1MDk3Mn0.wknuAcj9CEx0Mji7JFCva35MF8BgNTyuYekulRBaZ0A"
+NEXT_PUBLIC_EXERCISE_SUPABASE_URL      = "https://pmfybzqksepmmeehttwt.supabase.co"
+NEXT_PUBLIC_EXERCISE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtZnlienFrc2VwbW1lZWh0dHd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MzYxOTUsImV4cCI6MjA5MjAxMjE5NX0.igWMLUWJWYjUJN3FWfRc-NGAzDWjqEofjo_ZZLB7Qms"
+
+
+# SUPABASE_SERVICE_ROLE_KEY    → wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# MS_CLIENT_SECRET             → wrangler secret put MS_CLIENT_SECRET
+# GOOGLE_CALENDAR_CLIENT_SECRET → wrangler secret put GOOGLE_CALENDAR_CLIENT_SECRET
+# RESEND_API_KEY               → wrangler secret put RESEND_API_KEY
+
+[[routes]]
+pattern = "ptclient.yannicksalm.ch/*"
+zone_name = "yannicksalm.ch"

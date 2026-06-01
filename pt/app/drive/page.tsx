@@ -17,6 +17,10 @@ interface PtFile {
 }
 interface ClientRecord { id: string; name: string }
 interface PtFolder { id: string; trainer_id: string; client_id: string; name: string; created_at: string }
+interface AccInvoice {
+  id: string; invoice_number: string; title: string; status: string;
+  issue_date: string; due_date: string | null; total: number; pdf_url: string | null; created_at: string;
+}
 
 function fmtBytes(b: number | null): string {
   if (!b) return '—';
@@ -164,6 +168,7 @@ export default function DrivePage() {
   const [clientSub,      setClientSub]      = useState<ClientSub>('documents');
   const [files,          setFiles]          = useState<PtFile[]>([]);
   const [folders,        setFolders]        = useState<PtFolder[]>([]);
+  const [accInvoices,    setAccInvoices]    = useState<AccInvoice[]>([]);
   const [loading,        setLoading]        = useState(false);
   const [uploading,      setUploading]      = useState(false);
   const [uploadTarget,   setUploadTarget]   = useState<string | null>(null);
@@ -194,6 +199,7 @@ export default function DrivePage() {
     setLoading(true);
     setFiles([]);
     setFolders([]);
+    setAccInvoices([]);
 
     if (section === 'my_files') {
       const { data } = await sb.from('pt_files').select('*').eq('trainer_id', userId).eq('section', 'my_files').order('created_at', { ascending: false });
@@ -210,8 +216,12 @@ export default function DrivePage() {
         setFiles((filesRes.data ?? []) as PtFile[]);
         setFolders((foldersRes.data ?? []) as PtFolder[]);
       } else {
-        const { data } = await sb.from('pt_files').select('*').eq('trainer_id', userId).eq('client_id', selClient).eq('section', 'client_invoices').order('created_at', { ascending: false });
-        setFiles((data ?? []) as PtFile[]);
+        const [filesRes, invRes] = await Promise.all([
+          sb.from('pt_files').select('*').eq('trainer_id', userId).eq('client_id', selClient).eq('section', 'client_invoices').order('created_at', { ascending: false }),
+          sb.from('invoices').select('id, invoice_number, title, status, issue_date, due_date, total, pdf_url, created_at').eq('pt_id', userId).eq('client_id', selClient).order('created_at', { ascending: false }),
+        ]);
+        setFiles((filesRes.data ?? []) as PtFile[]);
+        setAccInvoices((invRes.data ?? []) as AccInvoice[]);
       }
     }
     setLoading(false);
@@ -454,15 +464,52 @@ export default function DrivePage() {
                   )
                 )}
 
-                {/* Invoices */}
+                {/* Invoices — accounting invoices + manually uploaded PDFs */}
                 {clientSub === 'invoices' && (
                   <>
                     <p style={{ fontSize: 13, color: 'var(--text-subtle)', marginBottom: 16 }}>
-                      {de
-                        ? `Rechnungen für ${selectedClientName}. Beim Hochladen wird automatisch eine Kopie ins Archiv gespeichert.`
-                        : `Invoices for ${selectedClientName}. A copy is automatically saved to your archive.`}
+                      {de ? `Rechnungen für ${selectedClientName}.` : `Invoices for ${selectedClientName}.`}
                     </p>
-                    <SimpleList emptyMsg={de ? 'Noch keine Rechnungen für diesen Client.' : 'No invoices for this client yet.'} emptyIcon="🧾" />
+                    {loading ? <Spinner /> : (accInvoices.length === 0 && files.length === 0) ? (
+                      <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 36, marginBottom: 12 }}>🧾</div>
+                        <p style={{ fontSize: 14, color: 'var(--text-subtle)' }}>{de ? 'Noch keine Rechnungen für diesen Client.' : 'No invoices for this client yet.'}</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {/* Accounting invoices */}
+                        {accInvoices.length > 0 && (
+                          <div style={{ borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', background: 'var(--bg-card)' }}>
+                            {accInvoices.map((inv, i) => {
+                              const statusColor: Record<string, string> = { draft: 'var(--text-subtle)', sent: '#3b82f6', overdue: 'var(--danger)', reminder1: '#9333ea', reminder2: '#92400e', paid: 'var(--success)', cancelled: 'var(--text-subtle)' };
+                              const color = statusColor[inv.status] ?? 'var(--text-subtle)';
+                              return (
+                                <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 18px', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                                  <span style={{ fontSize: 22, flexShrink: 0 }}>🧾</span>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.title || inv.invoice_number}</div>
+                                    <div style={{ fontSize: 12, color: 'var(--text-subtle)', marginTop: 2 }}>{inv.invoice_number} · {new Date(inv.issue_date).toLocaleDateString(de ? 'de-CH' : 'en-GB')}</div>
+                                  </div>
+                                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, fontWeight: 600, flexShrink: 0 }}>{inv.status}</span>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0 }}>CHF {inv.total.toFixed(2)}</span>
+                                  {inv.pdf_url ? (
+                                    <a href={inv.pdf_url} target="_blank" rel="noopener noreferrer" style={{ padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600, background: 'var(--accent)', color: '#fff', textDecoration: 'none', flexShrink: 0 }}>⬇ PDF</a>
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: 'var(--text-subtle)', flexShrink: 0 }}>{de ? 'Entwurf' : 'Draft'}</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {/* Manually uploaded PDFs */}
+                        {files.length > 0 && (
+                          <div style={{ borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden', background: 'var(--bg-card)' }}>
+                            {files.map(f => <FileRow key={f.id} file={f} onDownload={handleDownload} onDelete={handleDelete} dlId={dlId} delId={delId} />)}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </>

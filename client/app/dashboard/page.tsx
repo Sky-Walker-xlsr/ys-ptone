@@ -595,8 +595,13 @@ interface DocFolder {
   name: string;
 }
 
+interface InvoiceItem {
+  id: string; description: string; quantity: number; unit_price: number; total: number; position: number;
+}
+
 interface ClientInvoice {
   id:             string;
+  pt_id:          string;
   invoice_number: string;
   title:          string;
   status:         string;
@@ -608,7 +613,7 @@ interface ClientInvoice {
   tax_amount:     number;
   notes:          string | null;
   pdf_url:        string | null;
-  currency:       string; // pulled from accounting_settings
+  currency:       string;
 }
 
 // ─── Account Tab ─────────────────────────────────────────────────────────────
@@ -634,6 +639,13 @@ function AccountTab({ profile, initials, themeId, toggleTheme, lang, setLang, si
   const [docTab,         setDocTab]         = useState<'documents' | 'invoices'>('documents');
   const [dlId,           setDlId]           = useState<string | null>(null);
   const [expanded,       setExpanded]       = useState<Set<string>>(new Set());
+  const [selectedInv,    setSelectedInv]    = useState<ClientInvoice | null>(null);
+  const [invItems,       setInvItems]       = useState<InvoiceItem[]>([]);
+  const [loadingItems,   setLoadingItems]   = useState(false);
+  const [invPtName,      setInvPtName]      = useState<string | null>(null);
+  const [invPtEmail,     setInvPtEmail]     = useState<string | null>(null);
+  const [invSettings,    setInvSettings]    = useState<Record<string, unknown> | null>(null);
+  const [generatingPdf,  setGeneratingPdf]  = useState(false);
 
   async function loadDocs() {
     if (docsLoaded) return;
@@ -810,65 +822,131 @@ function AccountTab({ profile, initials, themeId, toggleTheme, lang, setLang, si
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* Accounting invoices */}
-              {clientInvoices.length > 0 && (
-                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-                  {clientInvoices.map((inv, i) => {
-                    const statusColors: Record<string, string> = {
-                      paid: 'var(--success)', overdue: 'var(--danger)',
-                      reminder1: '#9333ea', reminder2: '#92400e',
-                      sent: '#3b82f6', draft: 'var(--text-subtle)', cancelled: 'var(--text-subtle)',
-                    };
-                    const statusLabels: Record<string, [string, string]> = {
-                      paid:      ['Bezahlt',   'Paid'],
-                      overdue:   ['Überfällig','Overdue'],
-                      reminder1: ['1. Mahnung','1st Reminder'],
-                      reminder2: ['2. Mahnung','2nd Reminder'],
-                      sent:      ['Offen',     'Open'],
-                      draft:     ['Entwurf',   'Draft'],
-                      cancelled: ['Storniert', 'Cancelled'],
-                    };
-                    const color = statusColors[inv.status] ?? 'var(--text-subtle)';
-                    const [labelDe, labelEn] = statusLabels[inv.status] ?? ['', ''];
-                    const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString(lang === 'de' ? 'de-CH' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-                    return (
-                      <div key={inv.id} style={{ padding: '14px 16px', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                          <span style={{ fontSize: 22, flexShrink: 0, marginTop: 2 }}>🧾</span>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
-                              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{inv.title || inv.invoice_number}</span>
-                              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44` }}>
-                                {lang === 'de' ? labelDe : labelEn}
-                              </span>
+              {/* Accounting invoices — clickable rows → detail modal */}
+              {clientInvoices.length > 0 && (() => {
+                const statusColors: Record<string, string> = { paid: 'var(--success)', overdue: 'var(--danger)', reminder1: '#9333ea', reminder2: '#92400e', sent: '#3b82f6', draft: 'var(--text-subtle)', cancelled: 'var(--text-subtle)' };
+                const statusLabels: Record<string, [string, string]> = { paid: ['Bezahlt','Paid'], overdue: ['Überfällig','Overdue'], reminder1: ['1. Mahnung','1st Reminder'], reminder2: ['2. Mahnung','2nd Reminder'], sent: ['Offen','Open'], draft: ['Entwurf','Draft'], cancelled: ['Storniert','Cancelled'] };
+                const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString(lang === 'de' ? 'de-CH' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+                return (
+                  <>
+                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                      {clientInvoices.map((inv, i) => {
+                        const color = statusColors[inv.status] ?? 'var(--text-subtle)';
+                        const [labelDe, labelEn] = statusLabels[inv.status] ?? ['',''];
+                        return (
+                          <button key={inv.id} onClick={async () => {
+                            setSelectedInv(inv); setLoadingItems(true); setInvItems([]);
+                            setInvPtName(null); setInvPtEmail(null); setInvSettings(null);
+                            const [itemsRes, ptRes, settingsRes] = await Promise.all([
+                              supabase.from('invoice_items').select('*').eq('invoice_id', inv.id).order('position'),
+                              supabase.from('profiles').select('display_name, first_name, last_name, email').eq('id', inv.pt_id).single(),
+                              supabase.from('accounting_settings').select('currency, invoice_color, invoice_footer_text, tax_number, iban, creditor_name, creditor_street, creditor_postal_code, creditor_city, creditor_country').eq('pt_id', inv.pt_id).maybeSingle(),
+                            ]);
+                            setInvItems((itemsRes.data ?? []) as InvoiceItem[]);
+                            const pt = ptRes.data as { display_name: string | null; first_name: string | null; last_name: string | null; email: string } | null;
+                            setInvPtName(pt ? (pt.display_name || [pt.first_name, pt.last_name].filter(Boolean).join(' ') || null) : null);
+                            setInvPtEmail(pt?.email ?? null);
+                            setInvSettings(settingsRes.data as Record<string, unknown> | null);
+                            setLoadingItems(false);
+                          }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderTop: i > 0 ? '1px solid var(--border)' : 'none', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                            <span style={{ fontSize: 22, flexShrink: 0 }}>🧾</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
+                                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{inv.title || inv.invoice_number}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44` }}>{lang === 'de' ? labelDe : labelEn}</span>
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--text-subtle)' }}>{inv.invoice_number}{inv.due_date ? ` · ${lang === 'de' ? 'Fällig' : 'Due'}: ${fmtDate(inv.due_date)}` : ''}</div>
                             </div>
-                            <div style={{ fontSize: 12, color: 'var(--text-subtle)' }}>
-                              {inv.invoice_number}
-                              {inv.due_date ? ` · ${lang === 'de' ? 'Fällig' : 'Due'}: ${fmtDate(inv.due_date)}` : ''}
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontSize: 15, fontWeight: 700, color: inv.status === 'paid' ? 'var(--success)' : 'var(--text-primary)' }}>{inv.currency} {inv.total.toFixed(2)}</div>
+                              <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 3 }}>{lang === 'de' ? 'Details →' : 'Details →'}</div>
                             </div>
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: inv.status === 'paid' ? 'var(--success)' : 'var(--text-primary)' }}>
-                              {inv.currency} {inv.total.toFixed(2)}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Invoice detail bottom sheet */}
+                    {selectedInv && (() => {
+                      const inv = selectedInv;
+                      const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString(lang === 'de' ? 'de-CH' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+                      return (
+                        <div onClick={e => { if (e.target === e.currentTarget) setSelectedInv(null); }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                          <div style={{ background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto', padding: '24px 20px 40px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                              <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{inv.title || inv.invoice_number}</h3>
+                              <button onClick={() => setSelectedInv(null)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted)', cursor: 'pointer' }}>×</button>
                             </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+                              {([[lang === 'de' ? 'Rechnungsnr.' : 'Invoice #', inv.invoice_number],[lang === 'de' ? 'Ausgestellt' : 'Issued', fmtD(inv.issue_date)],[lang === 'de' ? 'Fällig' : 'Due', fmtD(inv.due_date)],[lang === 'de' ? 'Status' : 'Status', inv.status]] as [string,string][]).map(([label, value]) => (
+                                <div key={label} style={{ background: 'var(--bg-tertiary)', borderRadius: 8, padding: '10px 12px' }}>
+                                  <div style={{ fontSize: 11, color: 'var(--text-subtle)', marginBottom: 3 }}>{label}</div>
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{value}</div>
+                                </div>
+                              ))}
+                            </div>
+                            {loadingItems ? (
+                              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-subtle)', fontSize: 13 }}>…</div>
+                            ) : invItems.length > 0 && (
+                              <div style={{ background: 'var(--bg-tertiary)', borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 50px 80px', padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                                  {[lang === 'de' ? 'Beschreibung' : 'Description', lang === 'de' ? 'Menge' : 'Qty', lang === 'de' ? 'Betrag' : 'Amount'].map(h => (
+                                    <span key={h} style={{ fontSize: 11, color: 'var(--text-subtle)', fontWeight: 600 }}>{h}</span>
+                                  ))}
+                                </div>
+                                {invItems.map((item, i) => (
+                                  <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 50px 80px', padding: '9px 12px', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                                    <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{item.description}</span>
+                                    <span style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>{item.quantity}</span>
+                                    <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, textAlign: 'right' }}>{inv.currency} {item.total.toFixed(2)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div style={{ background: 'var(--bg-tertiary)', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}><span>{lang === 'de' ? 'Zwischensumme' : 'Subtotal'}</span><span>{inv.currency} {inv.subtotal.toFixed(2)}</span></div>
+                              {inv.tax_rate > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}><span>MwSt. {inv.tax_rate}%</span><span>{inv.currency} {inv.tax_amount.toFixed(2)}</span></div>}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: inv.status === 'paid' ? 'var(--success)' : 'var(--text-primary)', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4 }}><span>{lang === 'de' ? 'Gesamt' : 'Total'}</span><span>{inv.currency} {inv.total.toFixed(2)}</span></div>
+                            </div>
+                            {inv.notes && <p style={{ fontSize: 13, color: 'var(--text-muted)', background: 'var(--bg-tertiary)', borderRadius: 8, padding: '10px 12px', marginBottom: 16, lineHeight: 1.6 }}>{inv.notes}</p>}
+
+                            {/* PDF: use stored URL if available, otherwise generate client-side */}
                             {inv.pdf_url ? (
-                              <a href={inv.pdf_url} target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize: 12, color: 'var(--accent)', display: 'block', marginTop: 4, textDecoration: 'none' }}>
-                                ⬇ PDF
+                              <a href={inv.pdf_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', width: '100%', padding: '13px', borderRadius: 12, background: 'var(--accent)', color: '#fff', fontSize: 15, fontWeight: 700, textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>
+                                ⬇ {lang === 'de' ? 'PDF herunterladen' : 'Download PDF'}
                               </a>
                             ) : (
-                              <div style={{ fontSize: 12, color: 'var(--text-subtle)', marginTop: 4 }}>{fmtDate(inv.issue_date)}</div>
+                              <button
+                                disabled={generatingPdf || loadingItems}
+                                onClick={async () => {
+                                  setGeneratingPdf(true);
+                                  try {
+                                    const { generateInvoicePDF } = await import('@/lib/pdf');
+                                    const s = invSettings;
+                                    const blob = await generateInvoicePDF(
+                                      { ...inv, due_date: inv.due_date ?? inv.issue_date, items: invItems.map(it => ({ description: it.description, quantity: it.quantity, unit_price: it.unit_price, total: it.total })) },
+                                      { currency: inv.currency, invoice_color: s?.invoice_color as string ?? '#6366f1', invoice_footer_text: s?.invoice_footer_text as string ?? null, tax_number: s?.tax_number as string ?? null, iban: s?.iban as string ?? null, creditor_name: s?.creditor_name as string ?? null, creditor_street: s?.creditor_street as string ?? null, creditor_postal_code: s?.creditor_postal_code as string ?? null, creditor_city: s?.creditor_city as string ?? null, creditor_country: s?.creditor_country as string ?? null },
+                                      { name: invPtName, email: invPtEmail },
+                                      profile ? { name: profile.display_name || [profile.first_name, profile.last_name].filter(Boolean).join(' ') || null, email: profile.email } : null,
+                                    );
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a'); a.href = url; a.download = `${inv.invoice_number}.pdf`; a.click();
+                                    URL.revokeObjectURL(url);
+                                  } catch (e) { console.error(e); }
+                                  setGeneratingPdf(false);
+                                }}
+                                style={{ display: 'block', width: '100%', padding: '13px', borderRadius: 12, background: generatingPdf ? 'var(--bg-tertiary)' : 'var(--accent)', color: generatingPdf ? 'var(--text-muted)' : '#fff', fontSize: 15, fontWeight: 700, textAlign: 'center', boxSizing: 'border-box', border: 'none', cursor: generatingPdf ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+                              >
+                                {generatingPdf ? '…' : `⬇ ${lang === 'de' ? 'PDF generieren & herunterladen' : 'Generate & download PDF'}`}
+                              </button>
                             )}
                           </div>
                         </div>
-                        {inv.notes && (
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, paddingLeft: 34, lineHeight: 1.5 }}>{inv.notes}</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })()}
+                  </>
+                );
+              })()}
               {/* Legacy pt_files invoices */}
               {invoiceFiles.length > 0 && (
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
