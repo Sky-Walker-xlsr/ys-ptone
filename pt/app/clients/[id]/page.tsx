@@ -1100,69 +1100,228 @@ function ClientDocumentsTab({ clientId, trainerId }: { clientId: string; trainer
 
 // ─── Invoices Tab ─────────────────────────────────────────────────────────────
 
-function ClientInvoicesTab({ clientId, trainerId }: { clientId: string; trainerId: string }) {
-  const supabase = useMemo(() => createClient(), [])
-  const [files,     setFiles]     = useState<CFile[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [uploading, setUploading] = useState(false)
-  const [dlId,      setDlId]      = useState<string | null>(null)
-  const [delId,     setDelId]     = useState<string | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
+interface AccInvoice {
+  id: string; invoice_number: string; title: string; status: string;
+  issue_date: string; due_date: string | null; total: number;
+  subtotal: number; tax_rate: number; tax_amount: number;
+  pdf_url: string | null; created_at: string;
+}
 
-  async function load() {
+interface AccSettings {
+  currency: string; tax_rate_default: number; payment_due_days: number;
+  invoice_prefix: string; invoice_color: string | null; invoice_footer_text: string | null;
+  tax_number: string | null;
+  iban: string | null; creditor_name: string | null; creditor_street: string | null;
+  creditor_postal_code: string | null; creditor_city: string | null; creditor_country: string | null;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  draft: 'var(--text-subtle)', sent: '#3b82f6', overdue: 'var(--danger)',
+  reminder1: '#9333ea', reminder2: '#92400e', paid: 'var(--success)', cancelled: 'var(--text-subtle)',
+};
+
+function ClientInvoicesTab({ clientId, trainerId, client, accessToken }: {
+  clientId: string; trainerId: string;
+  client: ClientProfile | null; accessToken: string;
+}) {
+  const supabase = useMemo(() => createClient(), [])
+  const [invoices,  setInvoices]  = useState<AccInvoice[]>([])
+  const [settings,  setSettings]  = useState<AccSettings | null>(null)
+  const [ptProfile, setPtProfile] = useState<{ name: string | null; email: string | null } | null>(null)
+  const [loading,   setLoading]   = useState(true)
+  const [showNew,   setShowNew]   = useState(false)
+  const [sending,   setSending]   = useState<string | null>(null)
+
+  async function loadAll() {
     setLoading(true)
-    const { data } = await supabase.from('pt_files').select('id, name, storage_path, size_bytes, section, subfolder, created_at')
-      .eq('trainer_id', trainerId).eq('client_id', clientId).eq('section', 'client_invoices')
-      .order('created_at', { ascending: false })
-    setFiles((data ?? []) as CFile[])
+    const [invRes, setRes, profRes] = await Promise.all([
+      supabase.from('invoices').select('id, invoice_number, title, status, issue_date, due_date, total, subtotal, tax_rate, tax_amount, pdf_url, created_at').eq('pt_id', trainerId).eq('client_id', clientId).order('created_at', { ascending: false }),
+      supabase.from('accounting_settings').select('*').eq('pt_id', trainerId).maybeSingle(),
+      supabase.from('profiles').select('display_name, first_name, last_name, email').eq('id', trainerId).single(),
+    ])
+    setInvoices((invRes.data ?? []) as AccInvoice[])
+    setSettings(setRes.data as AccSettings | null)
+    const p = profRes.data as { display_name: string | null; first_name: string | null; last_name: string | null; email: string } | null
+    setPtProfile(p ? { name: p.display_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || null, email: p.email } : null)
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [clientId, trainerId])
+  useEffect(() => { if (accessToken) loadAll() }, [clientId, trainerId, accessToken])
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-    setUploading(true)
-    const ts = Date.now()
-    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const currency = settings?.currency ?? 'CHF'
+  const fmtMoney = (n: number) => `${currency} ${n.toFixed(2)}`
+  const fmtDt    = (iso: string) => new Date(iso).toLocaleDateString('de-CH')
+
+  async function downloadPDF(inv: AccInvoice) {
+    if (inv.pdf_url) { window.open(inv.pdf_url, '_blank'); return; }
+    const { generateInvoicePDF } = await import('@/lib/pdf')
+    // We need items for PDF — fetch them
+    const { data: full } = await supabase.from('invoices').select('*, invoice_items(*)').eq('id', inv.id).single()
+    if (!full) return
+    const blob = await generateInvoicePDF(
+      { ...full, items: full.invoice_items ?? [] },
+      { currency, invoice_footer_text: settings?.invoice_footer_text, invoice_color: settings?.invoice_color, tax_number: settings?.tax_number, iban: settings?.iban, creditor_name: settings?.creditor_name, creditor_street: settings?.creditor_street, creditor_postal_code: settings?.creditor_postal_code, creditor_city: settings?.creditor_city, creditor_country: settings?.creditor_country },
+      { name: ptProfile?.name, email: ptProfile?.email },
+      client ? { name: client.display_name || [client.first_name, client.last_name].filter(Boolean).join(' ') || null, email: client.email } : null,
+    )
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `${inv.invoice_number}.pdf`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function sendInvoice(inv: AccInvoice) {
+    setSending(inv.id)
+    const { generateInvoicePDF } = await import('@/lib/pdf')
+    const { data: full } = await supabase.from('invoices').select('*, invoice_items(*)').eq('id', inv.id).single()
+    if (!full) { setSending(null); return }
+
+    let pdfBase64: string | undefined
     try {
-      const pairs: [string, string][] = [
-        [`${trainerId}/clients/${clientId}/invoices/${ts}_${safe}`, 'client_invoices'],
-        [`${trainerId}/invoices/${clientId}_${ts}_${safe}`, 'pt_invoices'],
-      ]
-      for (const [path, section] of pairs) {
-        const { error } = await supabase.storage.from('ptone_drive').upload(path, file, { contentType: file.type || undefined })
-        if (!error) await supabase.from('pt_files').insert({ trainer_id: trainerId, client_id: clientId, name: file.name, storage_path: path, size_bytes: file.size, mime_type: file.type || null, section, subfolder: null })
-      }
-      await load()
-    } catch (err) { console.error(err) }
-    setUploading(false)
+      const blob = await generateInvoicePDF(
+        { ...full, items: full.invoice_items ?? [] },
+        { currency, invoice_footer_text: settings?.invoice_footer_text, invoice_color: settings?.invoice_color, tax_number: settings?.tax_number, iban: settings?.iban, creditor_name: settings?.creditor_name, creditor_street: settings?.creditor_street, creditor_postal_code: settings?.creditor_postal_code, creditor_city: settings?.creditor_city, creditor_country: settings?.creditor_country },
+        { name: ptProfile?.name, email: ptProfile?.email },
+        client ? { name: client.display_name || [client.first_name, client.last_name].filter(Boolean).join(' ') || null, email: client.email } : null,
+      )
+      const buf = await blob.arrayBuffer()
+      pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(buf)))
+    } catch (_) {}
+
+    const res = await fetch(`/api/accounting/invoices/${inv.id}/send`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'invoice', pdfBase64, recipientEmail: client?.email }),
+    })
+    if (res.ok) await loadAll()
+    setSending(null)
   }
 
-  async function handleDownload(file: CFile) {
-    setDlId(file.id)
-    const { data } = await supabase.storage.from('ptone_drive').createSignedUrl(file.storage_path, 3600)
-    if (data?.signedUrl) { const a = document.createElement('a'); a.href = data.signedUrl; a.download = file.name; a.click() }
-    setDlId(null)
+  async function markPaid(inv: AccInvoice) {
+    await fetch(`/api/accounting/invoices/${inv.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'paid' }),
+    })
+    await loadAll()
   }
 
-  async function handleDelete(file: CFile) {
-    if (!confirm(`Delete "${file.name}"?`)) return
-    setDelId(file.id)
-    await supabase.storage.from('ptone_drive').remove([file.storage_path])
-    await supabase.from('pt_files').delete().eq('id', file.id)
-    setFiles(p => p.filter(f => f.id !== file.id))
-    setDelId(null)
+  // ─── New Invoice Modal ────────────────────────────────────────────────────
+
+  function NewInvoiceModal() {
+    const today = new Date().toISOString().slice(0, 10)
+    const defaultDue = new Date(Date.now() + (settings?.payment_due_days ?? 30) * 86400000).toISOString().slice(0, 10)
+    const [title, setTitle]    = useState('')
+    const [due,   setDue]      = useState(defaultDue)
+    const [tax,   setTax]      = useState(String(settings?.tax_rate_default ?? 0))
+    const [notes, setNotes]    = useState('')
+    const [items, setItems]    = useState([{ description: '', quantity: '1', unit_price: '' }])
+    const [isSaving, setIsSaving] = useState(false)
+    const [error,  setError]   = useState('')
+
+    const taxNum   = parseFloat(tax) || 0
+    const subtotal = items.reduce((s, it) => s + (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0), 0)
+    const taxAmt   = subtotal * taxNum / 100
+    const total    = subtotal + taxAmt
+
+    function updItem(i: number, k: 'description' | 'quantity' | 'unit_price', v: string) {
+      setItems(p => p.map((it, j) => j === i ? { ...it, [k]: v } : it))
+    }
+
+    async function create() {
+      if (!title) return
+      setIsSaving(true); setError('')
+      const res = await fetch('/api/accounting/invoices', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title, client_id: clientId, issue_date: today, due_date: due,
+          subtotal, tax_rate: taxNum, tax_amount: taxAmt, total, notes: notes || null,
+          items: items.filter(it => it.description).map((it, idx) => ({
+            description: it.description, quantity: parseFloat(it.quantity) || 1,
+            unit_price: parseFloat(it.unit_price) || 0,
+            total: (parseFloat(it.quantity) || 1) * (parseFloat(it.unit_price) || 0),
+            position: idx,
+          })),
+        }),
+      })
+      if (res.ok) { setShowNew(false); await loadAll() }
+      else { const j = await res.json().catch(() => ({})); setError(j.error ?? 'Error') }
+      setIsSaving(false)
+    }
+
+    const iStyle: React.CSSProperties = { padding: '7px 10px', fontSize: 13, background: 'none', border: 'none', color: 'var(--text-primary)', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box', outline: 'none' }
+    const fStyle: React.CSSProperties = { width: '100%', padding: '8px 11px', borderRadius: 7, fontSize: 13, background: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }
+    const lStyle: React.CSSProperties = { fontSize: 11, color: 'var(--text-subtle)', display: 'block', marginBottom: 3 }
+
+    return (
+      <div onClick={e => { if (e.target === e.currentTarget) setShowNew(false) }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, width: '100%', maxWidth: 680, padding: 28, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Neue Rechnung — {client?.display_name || client?.first_name || 'Client'}</h3>
+            <button onClick={() => setShowNew(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text-muted)' }}>×</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ gridColumn: '1 / -1' }}><label style={lStyle}>Titel *</label><input value={title} onChange={e => setTitle(e.target.value)} style={fStyle} placeholder="z.B. Coaching Mai" /></div>
+              <div><label style={lStyle}>Fälligkeitsdatum</label><input type="date" value={due} onChange={e => setDue(e.target.value)} style={fStyle} /></div>
+              <div><label style={lStyle}>MwSt. (%)</label><input type="number" value={tax} onChange={e => setTax(e.target.value)} style={fStyle} /></div>
+            </div>
+
+            {/* Line items */}
+            <div>
+              <label style={lStyle}>Positionen</label>
+              <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 90px 90px 28px' }}>
+                  {['Beschreibung', 'Menge', 'Preis', currency, ''].map((h, i) => (
+                    <div key={i} style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text-subtle)', background: 'var(--bg-tertiary)', fontWeight: 600 }}>{h}</div>
+                  ))}
+                </div>
+                {items.map((it, i) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 70px 90px 90px 28px', borderTop: '1px solid var(--border)' }}>
+                    <input value={it.description} onChange={e => updItem(i, 'description', e.target.value)} placeholder="Leistung..." style={iStyle} />
+                    <input type="number" value={it.quantity} onChange={e => updItem(i, 'quantity', e.target.value)} style={{ ...iStyle, borderLeft: '1px solid var(--border)' }} />
+                    <input type="number" value={it.unit_price} onChange={e => updItem(i, 'unit_price', e.target.value)} placeholder="0.00" style={{ ...iStyle, borderLeft: '1px solid var(--border)' }} />
+                    <div style={{ ...iStyle, borderLeft: '1px solid var(--border)', color: 'var(--text-muted)' }}>{currency} {((parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0)).toFixed(2)}</div>
+                    <button onClick={() => setItems(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', borderLeft: '1px solid var(--border)', color: 'var(--danger)', cursor: 'pointer', fontSize: 14 }}>×</button>
+                  </div>
+                ))}
+                <button onClick={() => setItems(p => [...p, { description: '', quantity: '1', unit_price: '' }])} style={{ width: '100%', padding: '7px 10px', fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                  + Position hinzufügen
+                </button>
+              </div>
+            </div>
+
+            {/* Totals */}
+            <div style={{ background: 'var(--bg-tertiary)', borderRadius: 8, padding: '10px 14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}><span>Zwischensumme</span><span>{fmtMoney(subtotal)}</span></div>
+              {taxNum > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}><span>MwSt. {taxNum}%</span><span>{fmtMoney(taxAmt)}</span></div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', borderTop: '1px solid var(--border)', paddingTop: 8 }}><span>Gesamt</span><span>{fmtMoney(total)}</span></div>
+            </div>
+
+            <div><label style={lStyle}>Bemerkungen</label><textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ ...fStyle, resize: 'vertical' }} /></div>
+
+            {error && <div style={{ fontSize: 13, color: 'var(--danger)', background: 'rgba(240,68,68,0.1)', borderRadius: 7, padding: '8px 12px' }}>⚠ {error}</div>}
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowNew(false)} style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, background: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>Abbrechen</button>
+              <button onClick={create} disabled={isSaving || !title} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: 'var(--accent)', border: 'none', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', opacity: !title ? 0.5 : 1 }}>{isSaving ? '...' : 'Erstellen'}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <>
-      <input ref={fileRef} type="file" style={{ display: 'none' }} onChange={handleFile} />
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{ padding: '7px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', cursor: uploading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: uploading ? 0.7 : 1 }}>
-          {uploading ? '…' : '+ Invoice'}
+      {showNew && <NewInvoiceModal />}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Rechnungen</h2>
+        <button onClick={() => setShowNew(true)} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+          + Rechnung erstellen
         </button>
       </div>
 
@@ -1170,14 +1329,39 @@ function ClientInvoicesTab({ clientId, trainerId }: { clientId: string; trainerI
         <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
           <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid var(--border-strong)', borderTopColor: 'var(--accent)', animation: 'spin 0.7s linear infinite' }} />
         </div>
-      ) : files.length === 0 ? (
+      ) : invoices.length === 0 ? (
         <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border-strong)', borderRadius: 14, padding: '60px 40px', textAlign: 'center' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>🧾</div>
-          <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>No invoices yet. Upload one above.</p>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>Noch keine Rechnungen für diesen Client.</p>
+          <button onClick={() => setShowNew(true)} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>+ Erste Rechnung erstellen</button>
         </div>
       ) : (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-          {files.map(f => <CFileRow key={f.id} file={f} onDownload={handleDownload} onDelete={handleDelete} dlId={dlId} delId={delId} />)}
+          {invoices.map((inv, i) => {
+            const color = STATUS_COLORS[inv.status] ?? 'var(--text-subtle)'
+            return (
+              <div key={inv.id} style={{ display: 'grid', gridTemplateColumns: '130px 1fr auto auto auto', alignItems: 'center', gap: 12, padding: '14px 18px', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{inv.invoice_number}</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{inv.title}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-subtle)' }}>{fmtDt(inv.issue_date)}{inv.due_date ? ` · fällig ${fmtDt(inv.due_date)}` : ''}</div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, whiteSpace: 'nowrap' }}>{inv.status}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{fmtMoney(inv.total)}</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => downloadPDF(inv)} style={{ padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>⬇ PDF</button>
+                  {inv.status === 'draft' && (
+                    <button onClick={() => sendInvoice(inv)} disabled={sending === inv.id} style={{ padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'var(--accent)', border: 'none', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', opacity: sending === inv.id ? 0.6 : 1 }}>
+                      {sending === inv.id ? '...' : '✉ Senden'}
+                    </button>
+                  )}
+                  {inv.status !== 'paid' && inv.status !== 'cancelled' && inv.status !== 'draft' && (
+                    <button onClick={() => markPaid(inv)} style={{ padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'var(--success)', border: 'none', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Bezahlt</button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
     </>
@@ -1202,6 +1386,7 @@ export default function ClientDetailPage() {
 
   const [loading,       setLoading]       = useState(true)
   const [trainerId,     setTrainerId]     = useState<string>('')
+  const [accessToken,   setAccessToken]   = useState<string>('')
   const [client,        setClient]        = useState<ClientProfile | null>(null)
   const [tab,           setTab]           = useState<Tab>('plans')
   const [assignedPlans, setAssignedPlans] = useState<AssignedPlan[]>([])
@@ -1214,6 +1399,7 @@ export default function ClientDetailPage() {
       if (!session) { router.replace('/login'); return }
       const tid = session.user.id
       setTrainerId(tid)
+      setAccessToken(session.access_token)
 
       // Verify relation exists
       const { data: tc } = await supabase.from('trainer_clients')
@@ -1305,7 +1491,7 @@ export default function ClientDetailPage() {
           {tab === 'logbook' && <LogbookTab sessions={sessions} />}
           {tab === 'journal' && <JournalTab clientId={clientId} trainerId={trainerId} />}
           {tab === 'documents' && <ClientDocumentsTab clientId={clientId} trainerId={trainerId} />}
-          {tab === 'invoices'  && <ClientInvoicesTab clientId={clientId} trainerId={trainerId} />}
+          {tab === 'invoices'  && <ClientInvoicesTab clientId={clientId} trainerId={trainerId} client={client} accessToken={accessToken} />}
         </div>
       </main>
     </div>

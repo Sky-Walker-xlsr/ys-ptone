@@ -22,6 +22,9 @@ CREATE TABLE public.accounting_settings (
   reminder2_days_after_r1 integer DEFAULT 14,
   reminder2_email_text text,
   updated_at timestamp with time zone DEFAULT now(),
+  email_auto_send boolean DEFAULT false,
+  notification_email text,
+  item_templates jsonb DEFAULT '[]'::jsonb,
   CONSTRAINT accounting_settings_pkey PRIMARY KEY (pt_id),
   CONSTRAINT accounting_settings_pt_id_fkey FOREIGN KEY (pt_id) REFERENCES public.profiles(id)
 );
@@ -116,6 +119,17 @@ CREATE TABLE public.client_settings (
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT client_settings_pkey PRIMARY KEY (client_id),
   CONSTRAINT client_settings_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.contact_requests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  pt_id uuid NOT NULL,
+  name text NOT NULL,
+  email text NOT NULL,
+  message text,
+  read boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT contact_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT contact_requests_pt_id_fkey FOREIGN KEY (pt_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.contact_submissions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -220,6 +234,22 @@ CREATE TABLE public.expense_categories (
   CONSTRAINT expense_categories_pkey PRIMARY KEY (id),
   CONSTRAINT expense_categories_pt_id_fkey FOREIGN KEY (pt_id) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.expense_entries (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  pt_id uuid NOT NULL,
+  title text NOT NULL,
+  amount numeric NOT NULL,
+  category text NOT NULL DEFAULT 'other'::text,
+  date date NOT NULL DEFAULT CURRENT_DATE,
+  notes text,
+  receipt_url text,
+  is_recurring boolean NOT NULL DEFAULT false,
+  recurring_interval text CHECK (recurring_interval = ANY (ARRAY['weekly'::text, 'monthly'::text, 'quarterly'::text, 'yearly'::text])),
+  next_occurrence date,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT expense_entries_pkey PRIMARY KEY (id),
+  CONSTRAINT expense_entries_pt_id_fkey FOREIGN KEY (pt_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.expense_receipts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   expense_id uuid NOT NULL,
@@ -248,6 +278,20 @@ CREATE TABLE public.expenses (
   CONSTRAINT expenses_pkey PRIMARY KEY (id),
   CONSTRAINT expenses_pt_id_fkey FOREIGN KEY (pt_id) REFERENCES public.profiles(id),
   CONSTRAINT expenses_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.expense_categories(id)
+);
+CREATE TABLE public.google_calendar_connections (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  trainer_id uuid NOT NULL UNIQUE,
+  access_token text NOT NULL,
+  refresh_token text,
+  token_expiry timestamp with time zone,
+  scope text,
+  google_email text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  default_calendar_id text,
+  CONSTRAINT google_calendar_connections_pkey PRIMARY KEY (id),
+  CONSTRAINT google_calendar_connections_trainer_id_fkey FOREIGN KEY (trainer_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.income_categories (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -278,6 +322,17 @@ CREATE TABLE public.incomes (
   CONSTRAINT incomes_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.profiles(id),
   CONSTRAINT incomes_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.income_categories(id),
   CONSTRAINT incomes_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(id)
+);
+CREATE TABLE public.invoice_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  invoice_id uuid NOT NULL,
+  description text NOT NULL,
+  quantity numeric NOT NULL DEFAULT 1,
+  unit_price numeric NOT NULL,
+  total numeric NOT NULL,
+  position integer NOT NULL DEFAULT 0,
+  CONSTRAINT invoice_items_pkey PRIMARY KEY (id),
+  CONSTRAINT invoice_items_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoices(id)
 );
 CREATE TABLE public.invoice_reminders (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -545,6 +600,31 @@ CREATE TABLE public.profiles (
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
+CREATE TABLE public.pt_client_folders (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  trainer_id uuid NOT NULL,
+  client_id uuid NOT NULL,
+  name text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT pt_client_folders_pkey PRIMARY KEY (id),
+  CONSTRAINT pt_client_folders_trainer_id_fkey FOREIGN KEY (trainer_id) REFERENCES auth.users(id),
+  CONSTRAINT pt_client_folders_client_id_fkey FOREIGN KEY (client_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.pt_files (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  trainer_id uuid NOT NULL,
+  client_id uuid,
+  name text NOT NULL,
+  storage_path text NOT NULL UNIQUE,
+  size_bytes bigint,
+  mime_type text,
+  section text NOT NULL CHECK (section = ANY (ARRAY['my_files'::text, 'videos'::text, 'client_documents'::text, 'client_invoices'::text, 'pt_invoices'::text])),
+  subfolder text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT pt_files_pkey PRIMARY KEY (id),
+  CONSTRAINT pt_files_trainer_id_fkey FOREIGN KEY (trainer_id) REFERENCES auth.users(id),
+  CONSTRAINT pt_files_client_id_fkey FOREIGN KEY (client_id) REFERENCES auth.users(id)
+);
 CREATE TABLE public.pt_profiles (
   id uuid NOT NULL,
   slug text UNIQUE,
@@ -559,12 +639,12 @@ CREATE TABLE public.pt_profiles (
   hero_image_url text,
   gallery_urls ARRAY DEFAULT '{}'::text[] CHECK (array_length(gallery_urls, 1) <= 6),
   is_public boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
   availability text,
   price_from text,
   focus_areas jsonb NOT NULL DEFAULT '[]'::jsonb,
-  color text NOT NULL DEFAULT '#7c6aff',
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
+  color text NOT NULL DEFAULT '#7c6aff'::text,
   CONSTRAINT pt_profiles_pkey PRIMARY KEY (id),
   CONSTRAINT pt_profiles_id_fkey FOREIGN KEY (id) REFERENCES public.profiles(id)
 );

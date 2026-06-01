@@ -189,6 +189,33 @@ client_settings_own
 ALL	
 public
 
+contact_requests
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+contact_requests_anon_insert
+INSERT	
+public
+
+
+contact_requests_pt_delete
+DELETE	
+public
+
+
+contact_requests_pt_select
+SELECT	
+public
+
+
+contact_requests_pt_update
+UPDATE	
+public
+
 contact_submissions
 
 Disable RLS
@@ -404,6 +431,23 @@ Name	Command	Applied to	Actions
 
 expenses_pt_own
 ALL	
+public
+
+google_calendar_connections
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+trainer can delete own google connection
+DELETE	
+public
+
+
+trainer can read own google connection
+SELECT	
 public
 
 income_categories
@@ -848,6 +892,40 @@ public
 
 profiles_update_own
 UPDATE	
+public
+
+pt_client_folders
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+pt_client_folders_client_select
+SELECT	
+public
+
+
+pt_client_folders_trainer_all
+ALL	
+public
+
+pt_files
+
+Disable RLS
+
+Create policy
+
+Name	Command	Applied to	Actions
+
+pt_files_client_select
+SELECT	
+public
+
+
+pt_files_trainer_all
+ALL	
 public
 
 pt_profiles

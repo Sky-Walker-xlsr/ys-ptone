@@ -60,6 +60,14 @@ interface WorkoutSession {
   source:           string;
 }
 
+interface Appointment {
+  id:       string;
+  title:    string;
+  start_at: string;
+  end_at:   string;
+  notes:    string | null;
+}
+
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
 function PlansIcon({ active }: { active: boolean }) {
@@ -181,23 +189,47 @@ interface PlansTabProps {
   lang:          Language;
   assignedPlans: AssignedPlan[];
   ownPlans:      OwnPlan[];
+  appointments:  Appointment[];
   onStartPlan:   (planId: string, title: string) => void;
   onStartEmpty:  () => void;
   onCreatePlan:  () => void;
   starting:      boolean;
 }
 
-function PlansTab({ profile, lang, assignedPlans, ownPlans, onStartPlan, onStartEmpty, onCreatePlan, starting }: PlansTabProps) {
+function PlansTab({ profile, lang, assignedPlans, ownPlans, appointments, onStartPlan, onStartEmpty, onCreatePlan, starting }: PlansTabProps) {
   const firstName = profile?.first_name ?? (lang === 'de' ? 'du' : 'there');
+
+  function fmtAppt(iso: string) {
+    return new Date(iso).toLocaleDateString(lang === 'de' ? 'de-CH' : 'en-GB', {
+      weekday: 'short', day: 'numeric', month: 'short',
+    }) + ' · ' + new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
 
   return (
     <div style={{ paddingTop: 24, paddingBottom: 16 }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
         {lang === 'de' ? `Hey ${firstName} 👋` : `Hey ${firstName} 👋`}
       </h1>
-      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 20 }}>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>
         {lang === 'de' ? 'Bereit für dein Training?' : 'Ready for your workout?'}
       </p>
+
+      {/* Tiny next-appointment chip */}
+      {appointments.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+          background: 'rgba(124,106,255,0.08)', border: '1px solid rgba(124,106,255,0.2)',
+          borderRadius: 10, padding: '9px 14px',
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {appointments[0].title}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--text-subtle)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {fmtAppt(appointments[0].start_at)}
+          </span>
+        </div>
+      )}
 
       {/* Quick start button */}
       <button onClick={onStartEmpty} disabled={starting} style={{ width: '100%', padding: '13px', background: 'rgba(124,106,255,0.12)', border: '1px solid rgba(124,106,255,0.3)', borderRadius: 14, color: 'var(--accent)', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 24, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
@@ -269,6 +301,27 @@ function PlansTab({ profile, lang, assignedPlans, ownPlans, onStartPlan, onStart
           </div>
         )}
       </div>
+
+      {/* All upcoming appointments - bottom of page */}
+      {appointments.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+            {lang === 'de' ? 'Nächste Termine' : 'Upcoming Appointments'}
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {appointments.map(a => (
+              <div key={a.id} style={{ ...card, padding: '13px 16px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, marginTop: 4 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-subtle)', marginTop: 2 }}>{fmtAppt(a.start_at)}</div>
+                  {a.notes && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{a.notes}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -542,33 +595,50 @@ interface DocFolder {
   name: string;
 }
 
+interface ClientInvoice {
+  id:             string;
+  invoice_number: string;
+  title:          string;
+  status:         string;
+  issue_date:     string;
+  due_date:       string | null;
+  total:          number;
+  subtotal:       number;
+  tax_rate:       number;
+  tax_amount:     number;
+  notes:          string | null;
+  pdf_url:        string | null;
+  currency:       string; // pulled from accounting_settings
+}
+
 // ─── Account Tab ─────────────────────────────────────────────────────────────
 
 interface AccountTabProps {
   profile: Profile | null; initials: string; themeId: string; toggleTheme: () => void;
   lang: Language; setLang: (l: Language) => void; signOut: () => void;
   relations: PTRelation[]; onAccept: (tcId: string) => void; onDecline: (tcId: string) => void;
-  userId: string;
+  userId: string; appointments: Appointment[];
 }
 
-function AccountTab({ profile, initials, themeId, toggleTheme, lang, setLang, signOut, relations, onAccept, onDecline, userId }: AccountTabProps) {
+function AccountTab({ profile, initials, themeId, toggleTheme, lang, setLang, signOut, relations, onAccept, onDecline, userId, appointments }: AccountTabProps) {
   const pendingRelations = relations.filter(r => r.status === 'pending');
   const activeRelations  = relations.filter(r => r.status === 'active');
   const supabase = useMemo(() => createClient(), []);
 
-  const [subView,     setSubView]     = useState<'main' | 'docs'>('main');
-  const [docFiles,    setDocFiles]    = useState<DocFile[]>([]);
-  const [docFolders,  setDocFolders]  = useState<DocFolder[]>([]);
-  const [docsLoaded,  setDocsLoaded]  = useState(false);
-  const [docsLoading, setDocsLoading] = useState(false);
-  const [docTab,      setDocTab]      = useState<'documents' | 'invoices'>('documents');
-  const [dlId,        setDlId]        = useState<string | null>(null);
-  const [expanded,    setExpanded]    = useState<Set<string>>(new Set());
+  const [subView,        setSubView]        = useState<'main' | 'docs'>('main');
+  const [docFiles,       setDocFiles]       = useState<DocFile[]>([]);
+  const [docFolders,     setDocFolders]     = useState<DocFolder[]>([]);
+  const [clientInvoices, setClientInvoices] = useState<ClientInvoice[]>([]);
+  const [docsLoaded,     setDocsLoaded]     = useState(false);
+  const [docsLoading,    setDocsLoading]    = useState(false);
+  const [docTab,         setDocTab]         = useState<'documents' | 'invoices'>('documents');
+  const [dlId,           setDlId]           = useState<string | null>(null);
+  const [expanded,       setExpanded]       = useState<Set<string>>(new Set());
 
   async function loadDocs() {
     if (docsLoaded) return;
     setDocsLoading(true);
-    const [filesRes, foldersRes] = await Promise.all([
+    const [filesRes, foldersRes, invoicesRes] = await Promise.all([
       supabase
         .from('pt_files')
         .select('id, name, storage_path, size_bytes, section, subfolder, created_at')
@@ -578,9 +648,31 @@ function AccountTab({ profile, initials, themeId, toggleTheme, lang, setLang, si
         .from('pt_client_folders')
         .select('id, name')
         .order('name'),
+      supabase
+        .from('invoices')
+        .select('id, invoice_number, title, status, issue_date, due_date, total, subtotal, tax_rate, tax_amount, notes, pdf_url, pt_id')
+        .eq('client_id', userId)
+        .order('created_at', { ascending: false }),
     ]);
+
     setDocFiles((filesRes.data ?? []) as DocFile[]);
     setDocFolders((foldersRes.data ?? []) as DocFolder[]);
+
+    // Fetch currency from accounting_settings for each unique PT
+    const rawInvoices = (invoicesRes.data ?? []) as (ClientInvoice & { pt_id: string })[];
+    const ptIds = [...new Set(rawInvoices.map(i => i.pt_id))];
+    const currencyMap: Record<string, string> = {};
+    if (ptIds.length > 0) {
+      const { data: settingsRows } = await supabase
+        .from('accounting_settings')
+        .select('pt_id, currency')
+        .in('pt_id', ptIds);
+      (settingsRows ?? []).forEach((s: { pt_id: string; currency: string }) => {
+        currencyMap[s.pt_id] = s.currency;
+      });
+    }
+    setClientInvoices(rawInvoices.map(inv => ({ ...inv, currency: currencyMap[inv.pt_id] ?? 'CHF' })));
+
     setDocsLoaded(true);
     setDocsLoading(false);
   }
@@ -709,16 +801,80 @@ function AccountTab({ profile, initials, themeId, toggleTheme, lang, setLang, si
             </div>
           )
         ) : (
-          /* ── Invoices flat list ── */
-          invoiceFiles.length === 0 ? (
+          /* ── Invoices: accounting invoices + legacy pt_files invoices ── */
+          clientInvoices.length === 0 && invoiceFiles.length === 0 ? (
             <div style={{ ...card, textAlign: 'center', padding: '40px 24px' }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>🧾</div>
               <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>{lang === 'de' ? 'Keine Rechnungen' : 'No invoices yet'}</p>
-              <p style={{ fontSize: 13, color: 'var(--text-subtle)', lineHeight: 1.6 }}>{lang === 'de' ? 'Dein PT hat noch keine Rechnungen geteilt.' : 'Your trainer has not shared any invoices yet.'}</p>
+              <p style={{ fontSize: 13, color: 'var(--text-subtle)', lineHeight: 1.6 }}>{lang === 'de' ? 'Dein PT hat noch keine Rechnungen erstellt.' : 'Your trainer has not created any invoices yet.'}</p>
             </div>
           ) : (
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-              {invoiceFiles.map(f => <DocFileRow key={f.id} file={f} />)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Accounting invoices */}
+              {clientInvoices.length > 0 && (
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                  {clientInvoices.map((inv, i) => {
+                    const statusColors: Record<string, string> = {
+                      paid: 'var(--success)', overdue: 'var(--danger)',
+                      reminder1: '#9333ea', reminder2: '#92400e',
+                      sent: '#3b82f6', draft: 'var(--text-subtle)', cancelled: 'var(--text-subtle)',
+                    };
+                    const statusLabels: Record<string, [string, string]> = {
+                      paid:      ['Bezahlt',   'Paid'],
+                      overdue:   ['Überfällig','Overdue'],
+                      reminder1: ['1. Mahnung','1st Reminder'],
+                      reminder2: ['2. Mahnung','2nd Reminder'],
+                      sent:      ['Offen',     'Open'],
+                      draft:     ['Entwurf',   'Draft'],
+                      cancelled: ['Storniert', 'Cancelled'],
+                    };
+                    const color = statusColors[inv.status] ?? 'var(--text-subtle)';
+                    const [labelDe, labelEn] = statusLabels[inv.status] ?? ['', ''];
+                    const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString(lang === 'de' ? 'de-CH' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+                    return (
+                      <div key={inv.id} style={{ padding: '14px 16px', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                          <span style={{ fontSize: 22, flexShrink: 0, marginTop: 2 }}>🧾</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
+                              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{inv.title || inv.invoice_number}</span>
+                              <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44` }}>
+                                {lang === 'de' ? labelDe : labelEn}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-subtle)' }}>
+                              {inv.invoice_number}
+                              {inv.due_date ? ` · ${lang === 'de' ? 'Fällig' : 'Due'}: ${fmtDate(inv.due_date)}` : ''}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: inv.status === 'paid' ? 'var(--success)' : 'var(--text-primary)' }}>
+                              {inv.currency} {inv.total.toFixed(2)}
+                            </div>
+                            {inv.pdf_url ? (
+                              <a href={inv.pdf_url} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize: 12, color: 'var(--accent)', display: 'block', marginTop: 4, textDecoration: 'none' }}>
+                                ⬇ PDF
+                              </a>
+                            ) : (
+                              <div style={{ fontSize: 12, color: 'var(--text-subtle)', marginTop: 4 }}>{fmtDate(inv.issue_date)}</div>
+                            )}
+                          </div>
+                        </div>
+                        {inv.notes && (
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, paddingLeft: 34, lineHeight: 1.5 }}>{inv.notes}</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Legacy pt_files invoices */}
+              {invoiceFiles.length > 0 && (
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                  {invoiceFiles.map(f => <DocFileRow key={f.id} file={f} />)}
+                </div>
+              )}
             </div>
           )
         )}
@@ -770,6 +926,28 @@ function AccountTab({ profile, initials, themeId, toggleTheme, lang, setLang, si
           </div>
         )}
       </div>
+
+      {appointments.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+            {lang === 'de' ? 'Nächste Termine' : 'Upcoming Appointments'}
+          </h2>
+          <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
+            {appointments.map((a, i) => {
+              const dt = new Date(a.start_at);
+              const dateStr = dt.toLocaleDateString(lang === 'de' ? 'de-CH' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+              const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+              return (
+                <div key={a.id} style={{ padding: '13px 16px', borderBottom: i < appointments.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{a.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-subtle)' }}>{dateStr} · {timeStr}</div>
+                  {a.notes && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{a.notes}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{ ...card, marginBottom: 16 }}>
         <MenuRow
@@ -833,6 +1011,7 @@ export default function Dashboard() {
   const [assignedPlans, setAssignedPlans] = useState<AssignedPlan[]>([]);
   const [ownPlans,      setOwnPlans]      = useState<OwnPlan[]>([]);
   const [sessions,      setSessions]      = useState<WorkoutSession[]>([]);
+  const [appointments,  setAppointments]  = useState<Appointment[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [starting,      setStarting]      = useState(false);
   const [userId,        setUserId]        = useState<string | null>(null);
@@ -843,16 +1022,18 @@ export default function Dashboard() {
       const uid = session.user.id;
       setUserId(uid);
 
-      const [profileRes, tcRes, assignRes, ownRes, sessRes] = await Promise.all([
+      const [profileRes, tcRes, assignRes, ownRes, sessRes, apptRes] = await Promise.all([
         supabase.from('profiles').select('first_name, last_name, display_name, email, has_coach').eq('id', uid).single(),
         supabase.from('trainer_clients').select('id, trainer_id, status').eq('client_id', uid).in('status', ['pending', 'active']).order('created_at', { ascending: false }),
         supabase.from('plan_assignments').select('id, plan_id, trainer_id, plans(id, title, description, plan_exercises(count))').eq('client_id', uid),
         supabase.from('plans').select('id, title, description, plan_exercises(count)').eq('user_id', uid).order('created_at', { ascending: false }),
         supabase.from('workout_sessions').select('id, title, status, started_at, finished_at, duration_seconds, total_volume_kg, total_sets, source').eq('user_id', uid).eq('status', 'completed').order('finished_at', { ascending: false }).limit(50),
+        supabase.from('appointments').select('id, title, start_at, end_at, notes').gte('end_at', new Date().toISOString()).order('start_at').limit(5),
       ]);
 
       setProfile(profileRes.data ?? { first_name: session.user.email?.split('@')[0] ?? null, last_name: null, display_name: null, email: session.user.email ?? '', has_coach: false });
       setSessions((sessRes.data ?? []) as WorkoutSession[]);
+      setAppointments((apptRes.data ?? []) as Appointment[]);
       setOwnPlans((ownRes.data ?? []).map((p: any) => ({ id: p.id, title: p.title, description: p.description, exercise_count: p.plan_exercises?.[0]?.count ?? 0 })));
 
       // PT relations
@@ -960,10 +1141,10 @@ export default function Dashboard() {
       </header>
 
       <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 16px' }}>
-        {tab === 'plans' && <PlansTab profile={profile} lang={lang} assignedPlans={assignedPlans} ownPlans={ownPlans} onStartPlan={startFromPlan} onStartEmpty={startEmptyWorkout} onCreatePlan={createOwnPlan} starting={starting} />}
+        {tab === 'plans' && <PlansTab profile={profile} lang={lang} assignedPlans={assignedPlans} ownPlans={ownPlans} appointments={appointments} onStartPlan={startFromPlan} onStartEmpty={startEmptyWorkout} onCreatePlan={createOwnPlan} starting={starting} />}
         {tab === 'logbook' && <LogbookTab lang={lang} sessions={sessions} streak={streak} />}
         {tab === 'journal' && <JournalTab lang={lang} userId={userId!} ptId={activePtId} />}
-        {tab === 'account' && <AccountTab profile={profile} initials={initials} themeId={themeId} toggleTheme={toggleTheme} lang={lang} setLang={setLang} signOut={signOut} relations={relations} onAccept={handleAccept} onDecline={handleDecline} userId={userId!} />}
+        {tab === 'account' && <AccountTab profile={profile} initials={initials} themeId={themeId} toggleTheme={toggleTheme} lang={lang} setLang={setLang} signOut={signOut} relations={relations} onAccept={handleAccept} onDecline={handleDecline} userId={userId!} appointments={appointments} />}
       </div>
 
       <nav style={{ position: 'fixed', bottom: 20, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 100, padding: '0 16px', pointerEvents: 'none' }}>

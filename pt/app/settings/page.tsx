@@ -52,7 +52,8 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-type GCalState = 'loading' | { email: string | null } | null;
+interface GCalCalendarShape { id: string; summary: string; primary?: boolean; backgroundColor?: string; }
+type GCalState = 'loading' | { email: string | null; defaultCalendarId: string | null } | null;
 
 export default function SettingsPage() {
   const { t, lang, setLang } = useTranslation();
@@ -60,18 +61,34 @@ export default function SettingsPage() {
   const s = t(dashboard);
   const de = lang === 'de';
 
-  const [gcal, setGcal] = useState<GCalState>('loading');
+  const [gcal,            setGcal]           = useState<GCalState>('loading');
+  const [gcalCalendars,   setGcalCalendars]  = useState<GCalCalendarShape[]>([]);
+  const [savingDefault,   setSavingDefault]  = useState(false);
+  const [accessToken,     setAccessToken]    = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) { setGcal(null); return; }
-      supabase
+      setAccessToken(session.access_token);
+
+      const { data: conn } = await supabase
         .from('google_calendar_connections')
-        .select('google_email')
+        .select('google_email, default_calendar_id')
         .eq('trainer_id', session.user.id)
-        .maybeSingle()
-        .then(({ data: conn }) => setGcal(conn ? { email: conn.google_email } : null));
+        .maybeSingle();
+
+      setGcal(conn ? { email: conn.google_email, defaultCalendarId: conn.default_calendar_id ?? null } : null);
+
+      if (conn) {
+        const res = await fetch('/api/google/calendars', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (res.ok) {
+          const { calendars } = await res.json();
+          setGcalCalendars(calendars);
+        }
+      }
     });
 
     if (typeof window !== 'undefined' && (
@@ -95,6 +112,22 @@ export default function SettingsPage() {
     if (!data.user) return;
     await supabase.from('google_calendar_connections').delete().eq('trainer_id', data.user.id);
     setGcal(null);
+    setGcalCalendars([]);
+  }
+
+  async function saveDefaultCalendar(calendarId: string) {
+    if (!accessToken) return;
+    setSavingDefault(true);
+    const supabase = createClient();
+    const { data } = await supabase.auth.getUser();
+    if (data.user) {
+      await supabase
+        .from('google_calendar_connections')
+        .update({ default_calendar_id: calendarId })
+        .eq('trainer_id', data.user.id);
+      setGcal(prev => prev && prev !== 'loading' ? { ...prev, defaultCalendarId: calendarId } : prev);
+    }
+    setSavingDefault(false);
   }
 
   const btnBase: React.CSSProperties = {
@@ -155,7 +188,7 @@ export default function SettingsPage() {
         <Section title={de ? 'Integrationen' : 'Integrations'}>
           <SettingRow
             label="Google Calendar"
-            last
+            last={!gcal || gcal === 'loading' || gcalCalendars.length <= 1}
             description={
               gcal === 'loading' ? '...'
               : gcal
@@ -179,6 +212,33 @@ export default function SettingsPage() {
               )
             }
           />
+          {gcal && gcal !== 'loading' && gcalCalendars.length > 1 && (
+            <SettingRow
+              label={de ? 'Standard-Kalender' : 'Default Calendar'}
+              description={de ? 'Kalender für neue Termine' : 'Calendar for new appointments'}
+              last
+              control={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <select
+                    value={gcal.defaultCalendarId ?? gcalCalendars.find(c => c.primary)?.id ?? gcalCalendars[0]?.id ?? ''}
+                    onChange={e => saveDefaultCalendar(e.target.value)}
+                    disabled={savingDefault}
+                    style={{
+                      padding: '5px 10px', borderRadius: 7, fontSize: 13,
+                      background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+                      color: 'var(--text-primary)', fontFamily: 'inherit', cursor: 'pointer',
+                      opacity: savingDefault ? 0.6 : 1,
+                    }}
+                  >
+                    {gcalCalendars.map(c => (
+                      <option key={c.id} value={c.id}>{c.summary}</option>
+                    ))}
+                  </select>
+                  {savingDefault && <span style={{ fontSize: 12, color: 'var(--text-subtle)' }}>…</span>}
+                </div>
+              }
+            />
+          )}
         </Section>
 
         <Section title={de ? 'Konto' : 'Account'}>

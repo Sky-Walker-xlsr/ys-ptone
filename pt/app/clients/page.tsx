@@ -404,6 +404,14 @@ export default function ClientsPage() {
   const [archiveOpen,   setArchiveOpen]   = useState(false);
   const [actionError,   setActionError]   = useState<string | null>(null);
 
+  // Auto-open add modal when navigated with ?new=1
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search.includes('new=1')) {
+      setShowAdd(true);
+      window.history.replaceState({}, '', '/clients');
+    }
+  }, []);
+
   // ─── Load ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
