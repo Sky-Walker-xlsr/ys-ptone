@@ -29,7 +29,8 @@ interface DashData {
 
 const STEP = 50;
 const snap = (v: number) => Math.round(v / STEP) * STEP;
-const MIN_W = 200; const MAX_W = 900; const MIN_H = 120; const MAX_H = 400;
+const MIN_W = 200; const MIN_H = 120; const MAX_H = 400;
+// MAX_W is always half the container width — computed dynamically per card
 
 function hits(a: { x: number; y: number; w: number; h: number }, b: Card) {
   return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
@@ -291,7 +292,7 @@ function DashCard({ card, data, de, isEditing, token, others, zIndex, containerW
 
     function mm(ev: MouseEvent) {
       const nx = snap(Math.min(containerW - card.w, Math.max(0, ev.clientX - ox)));
-      const ny = snap(Math.max(0, ev.clientY - oy));
+      const ny = snap(Math.max(0, ev.clientY - oy)); // bottom is unlimited
       const blocked = others.some(o => hits({ x: nx, y: ny, w: card.w, h: card.h }, o));
       if (!blocked) { lx = nx; ly = ny; onMove(card.id, nx, ny); }
     }
@@ -312,7 +313,8 @@ function DashCard({ card, data, de, isEditing, token, others, zIndex, containerW
     let lw = sw, lh = sh;
 
     function mm(ev: MouseEvent) {
-      const nw = snap(Math.min(MAX_W, Math.min(containerW - card.x, Math.max(MIN_W, sw + ev.clientX - sx))));
+      // Right edge = screen edge; bottom is unlimited
+      const nw = snap(Math.min(containerW - card.x, Math.max(MIN_W, sw + ev.clientX - sx)));
       const nh = snap(Math.min(MAX_H, Math.max(MIN_H, sh + ev.clientY - sy)));
       const blocked = others.some(o => hits({ x: card.x, y: card.y, w: nw, h: nh }, o));
       if (!blocked) { lw = nw; lh = nh; onResize(card.id, nw, nh); }
@@ -377,6 +379,16 @@ export default function DashboardPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerW, setContainerW] = useState(1100);
 
+  // ── Compute right boundary from window + CSS sidebar var ──────────────────
+  // This is always correct: windowWidth - sidebarWidth - leftPadding(36).
+  // At maximum card x + w = containerW → viewport right edge = windowWidth. ✓
+  function computeW(): number {
+    if (typeof window === 'undefined') return 1100;
+    const raw   = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim();
+    const sbW   = parseFloat(raw) || 240;
+    return Math.floor(window.innerWidth - sbW - 72); // 72 = main left+right padding (36+36)
+  }
+
   // ── Persist ────────────────────────────────────────────────────────────────
   function setAndSave(next: Card[]) { setCards(next); save(next); }
 
@@ -411,11 +423,22 @@ export default function DashboardPage() {
     setZOrder(p => [...p.filter(i => i !== id), id]);
   }
 
-  // ── Load ──────────────────────────────────────────────────────────────────
+  // ── Keep containerW in sync with window size + sidebar width changes ──────
   useEffect(() => {
-    const cw = containerRef.current?.clientWidth ?? 1100;
-    setContainerW(cw);
-    const loaded = load(cw);
+    const update = () => setContainerW(computeW());
+    update();
+    window.addEventListener('resize', update);
+
+    // Watch --sidebar-width CSS var changes (sidebar collapse/expand)
+    const mo = new MutationObserver(update);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+
+    return () => { window.removeEventListener('resize', update); mo.disconnect(); };
+  }, []);
+
+  // ── Load saved cards on mount ───────────────────────────────────────────────
+  useEffect(() => {
+    const loaded = load(computeW());
     setCards(loaded);
     setZOrder(loaded.map(c => c.id));
   }, []);
@@ -498,17 +521,17 @@ export default function DashboardPage() {
             onClick={() => setIsEditing(e => !e)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: isEditing ? 'var(--success)' : 'var(--bg-card)', color: isEditing ? '#fff' : 'var(--text-muted)', border: `1px solid ${isEditing ? 'var(--success)' : 'var(--border)'}`, cursor: 'pointer', fontFamily: 'inherit' }}
           >
-            {isEditing ? '✓ Done' : '✎ Edit'}
+            {isEditing ? `✓ ${de ? 'Fertig' : 'Done'}` : `✎ ${de ? 'Bearbeiten' : 'Edit'}`}
           </button>
         </div>
 
-        {/* Stat row — same width as canvas, using containerRef for reference */}
-        <div ref={containerRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+        {/* Stat row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
           {stats.map(st => <StatCard key={st.label} label={st.label} value={st.value} sub={'sub' in st ? st.sub : undefined} icon={st.icon} color={st.color} href={st.href} />)}
         </div>
 
         {/* Edit hint */}
-        {isEditing && <div style={{ background: 'rgba(99,102,241,0.07)', border: '1px dashed var(--accent)66', borderRadius: 8, padding: '6px 14px', marginBottom: 16, fontSize: 12, color: 'var(--accent)' }}>Drag header to move · Drag ▼ corner to resize (50 px grid, max 400 px tall) · × to remove</div>}
+        {isEditing && <div style={{ background: 'rgba(99,102,241,0.07)', border: '1px dashed var(--accent)66', borderRadius: 8, padding: '6px 14px', marginBottom: 16, fontSize: 12, color: 'var(--accent)' }}>{de ? 'Header ziehen zum Verschieben · Ecke ziehen zum Skalieren (50px Raster, max 400px) · × zum Entfernen' : 'Drag header to move · Drag corner to resize (50px grid, max 400px) · × to remove'}</div>}
 
         {/* Free canvas */}
         <div style={{ position: 'relative', width: '100%', minHeight: canvasH }}>

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Sidebar } from '@/components/Sidebar';
+import { useTranslation } from '@/locales';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,8 @@ function NewPlanModal({ title: heading, onSave, onClose }: {
   onSave: (title: string, desc: string) => Promise<void>;
   onClose: () => void;
 }) {
+  const { lang } = useTranslation();
+  const de = lang === 'de';
   const [title, setTitle] = useState('');
   const [desc,  setDesc]  = useState('');
   const [saving, setSaving] = useState(false);
@@ -91,7 +94,7 @@ function NewPlanModal({ title: heading, onSave, onClose }: {
         <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{heading}</h2>
         <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
           <input
-            autoFocus placeholder="Plan title" value={title}
+            autoFocus placeholder={de ? 'Plantitel' : 'Plan title'} value={title}
             onChange={e => setTitle(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             style={{ fontSize: 15, width: '100%', background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit' }}
@@ -99,15 +102,15 @@ function NewPlanModal({ title: heading, onSave, onClose }: {
         </div>
         <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
           <input
-            placeholder="Description (optional)" value={desc}
+            placeholder={de ? 'Beschreibung (optional)' : 'Description (optional)'} value={desc}
             onChange={e => setDesc(e.target.value)}
             style={{ fontSize: 14, width: '100%', background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit' }}
           />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>{de ? 'Abbrechen' : 'Cancel'}</button>
           <button onClick={handleSave} disabled={saving || !title.trim()} style={{ flex: 2, padding: '10px', borderRadius: 10, border: 'none', background: title.trim() ? 'var(--accent)' : 'var(--bg-tertiary)', color: title.trim() ? '#fff' : 'var(--text-muted)', fontSize: 14, fontWeight: 600, cursor: title.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-            {saving ? 'Creating…' : 'Create & Edit'}
+            {saving ? (de ? 'Erstellen…' : 'Creating…') : (de ? 'Erstellen & Bearbeiten' : 'Create & Edit')}
           </button>
         </div>
       </div>
@@ -123,6 +126,8 @@ function FolderNameModal({ heading, initial = '', onSave, onClose }: {
   onSave: (name: string) => Promise<void>;
   onClose: () => void;
 }) {
+  const { lang } = useTranslation();
+  const de = lang === 'de';
   const [name, setName] = useState(initial);
   const [saving, setSaving] = useState(false);
 
@@ -139,16 +144,16 @@ function FolderNameModal({ heading, initial = '', onSave, onClose }: {
         <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{heading}</h2>
         <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
           <input
-            autoFocus placeholder="Folder name" value={name}
+            autoFocus placeholder={de ? 'Ordnername' : 'Folder name'} value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSave()}
             style={{ fontSize: 15, width: '100%', background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit' }}
           />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>{de ? 'Abbrechen' : 'Cancel'}</button>
           <button onClick={handleSave} disabled={saving || !name.trim()} style={{ flex: 2, padding: '10px', borderRadius: 10, border: 'none', background: name.trim() ? 'var(--accent)' : 'var(--bg-tertiary)', color: name.trim() ? '#fff' : 'var(--text-muted)', fontSize: 14, fontWeight: 600, cursor: name.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-            {saving ? 'Saving…' : initial ? 'Rename' : 'Create Folder'}
+            {saving ? (de ? 'Speichern…' : 'Saving…') : initial ? (de ? 'Umbenennen' : 'Rename') : (de ? 'Ordner erstellen' : 'Create Folder')}
           </button>
         </div>
       </div>
@@ -163,6 +168,8 @@ function TemplatePickerModal({ folders, onSelect, onClose }: {
   onSelect: (plan: TemplatePlan) => Promise<void>;
   onClose: () => void;
 }) {
+  const { lang } = useTranslation();
+  const de = lang === 'de';
   const [selected, setSelected] = useState<TemplatePlan | null>(null);
   const [saving, setSaving] = useState(false);
   const allPlans = folders.flatMap(f => f.plans);
@@ -177,10 +184,10 @@ function TemplatePickerModal({ folders, onSelect, onClose }: {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, margin: '0 auto', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '16px 16px 0 0', padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '80vh' }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Insert from Template</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{de ? 'Vorlage einfügen' : 'Insert from Template'}</h2>
 
         {allPlans.length === 0 ? (
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0' }}>No templates yet. Create some in the Templates section first.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0' }}>{de ? 'Noch keine Vorlagen. Erstelle welche im Vorlagen-Bereich.' : 'No templates yet. Create some in the Templates section first.'}</p>
         ) : (
           <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
             {folders.filter(f => f.plans.length > 0).map(folder => (
@@ -194,7 +201,7 @@ function TemplatePickerModal({ folders, onSelect, onClose }: {
                     >
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{plan.title}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{plan.exercise_count} exercises</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{plan.exercise_count} {de ? 'Übungen' : 'exercises'}</div>
                       </div>
                       {selected?.id === plan.id && (
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -208,9 +215,9 @@ function TemplatePickerModal({ folders, onSelect, onClose }: {
         )}
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+          <button onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>{de ? 'Abbrechen' : 'Cancel'}</button>
           <button onClick={handleInsert} disabled={!selected || saving} style={{ flex: 2, padding: '10px', borderRadius: 10, border: 'none', background: selected ? 'var(--accent)' : 'var(--bg-tertiary)', color: selected ? '#fff' : 'var(--text-muted)', fontSize: 14, fontWeight: 600, cursor: selected ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-            {saving ? 'Inserting…' : 'Insert Template'}
+            {saving ? (de ? 'Einfügen…' : 'Inserting…') : (de ? 'Vorlage einfügen' : 'Insert Template')}
           </button>
         </div>
       </div>
@@ -260,6 +267,8 @@ function PlanRow({ plan, menuItems, onNavigate }: {
 export default function PlansPage() {
   const router  = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const { lang } = useTranslation();
+  const de = lang === 'de';
 
   const [trainerId,       setTrainerId]       = useState<string | null>(null);
   const [loading,         setLoading]         = useState(true);
@@ -464,25 +473,34 @@ export default function PlansPage() {
       .select('id').single();
     if (!newPlan) return;
 
-    // Deep-copy exercises
+    // Deep-copy exercises — use the correct column names from the actual schema:
+    // plan_exercises: position, superset_group, default_sets
+    // plan_sets:      set_number, weight_kg, reps
     const { data: exercises } = await supabase
       .from('plan_exercises')
-      .select('id, exercise_id, order_index, superset_group_id, notes')
+      .select('id, exercise_id, position, superset_group, default_sets')
       .eq('plan_id', template.id)
-      .order('order_index', { ascending: true });
+      .order('position', { ascending: true });
 
     if (exercises && exercises.length > 0) {
       const groupIdMap: Record<string, string> = {};
       const newExercises = exercises.map(ex => {
-        let newGroupId: string | null = null;
-        if (ex.superset_group_id) {
-          if (!groupIdMap[ex.superset_group_id]) groupIdMap[ex.superset_group_id] = crypto.randomUUID();
-          newGroupId = groupIdMap[ex.superset_group_id];
+        let newGroup: string | null = null;
+        if (ex.superset_group) {
+          if (!groupIdMap[ex.superset_group]) groupIdMap[ex.superset_group] = crypto.randomUUID();
+          newGroup = groupIdMap[ex.superset_group];
         }
-        return { plan_id: newPlan.id, exercise_id: ex.exercise_id, order_index: ex.order_index, superset_group_id: newGroupId, notes: ex.notes };
+        return {
+          plan_id:       newPlan.id,
+          exercise_id:   ex.exercise_id,
+          position:      ex.position,
+          superset_group:newGroup,
+          default_sets:  ex.default_sets,
+        };
       });
 
-      const { data: insertedExercises } = await supabase.from('plan_exercises').insert(newExercises).select('id');
+      const { data: insertedExercises } = await supabase
+        .from('plan_exercises').insert(newExercises).select('id');
 
       if (insertedExercises) {
         const exIdMap: Record<string, string> = {};
@@ -490,19 +508,17 @@ export default function PlansPage() {
 
         const { data: oldSets } = await supabase
           .from('plan_sets')
-          .select('plan_exercise_id, order_index, reps, weight_kg, duration_seconds, rest_seconds')
+          .select('plan_exercise_id, set_number, reps, weight_kg')
           .in('plan_exercise_id', exercises.map(e => e.id))
-          .order('order_index', { ascending: true });
+          .order('set_number', { ascending: true });
 
         if (oldSets && oldSets.length > 0) {
           await supabase.from('plan_sets').insert(
             oldSets.map(s => ({
               plan_exercise_id: exIdMap[s.plan_exercise_id],
-              order_index: s.order_index,
-              reps: s.reps,
-              weight_kg: s.weight_kg,
-              duration_seconds: s.duration_seconds,
-              rest_seconds: s.rest_seconds,
+              set_number:       s.set_number,
+              reps:             s.reps,
+              weight_kg:        s.weight_kg,
             }))
           );
         }
@@ -545,7 +561,7 @@ export default function PlansPage() {
         )}
 
         <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Training Plans</h1>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{de ? 'Trainingspläne' : 'Training Plans'}</h1>
           <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>Manage client plans and reusable templates.</p>
         </div>
 
@@ -581,7 +597,7 @@ export default function PlansPage() {
                   {openClientIds.has(client.id) && (
                     <div style={{ background: 'var(--bg-page)', borderTop: '1px solid var(--border)', padding: '4px 16px 12px 48px' }}>
                       {client.plans.length === 0 ? (
-                        <p style={{ fontSize: 12, color: 'var(--text-subtle)', padding: '8px 0' }}>No plans assigned yet.</p>
+                        <p style={{ fontSize: 12, color: 'var(--text-subtle)', padding: '8px 0' }}>{de ? 'Noch keine Pläne zugewiesen.' : 'No plans assigned yet.'}</p>
                       ) : client.plans.map(plan => (
                         <PlanRow
                           key={plan.plan_id}
@@ -598,7 +614,7 @@ export default function PlansPage() {
                           onClick={() => setNewClientPlan({ clientId: client.id })}
                           style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
                         >
-                          + New Plan
+                          {de ? '+ Neuer Plan' : '+ New Plan'}
                         </button>
                         <button
                           onClick={() => setTemplatePicker({ clientId: client.id })}
@@ -632,7 +648,7 @@ export default function PlansPage() {
               onClick={() => setNewFolder(true)}
               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
             >
-              + New Folder
+              {de ? '+ Neuer Ordner' : '+ New Folder'}
             </button>
           </div>
 
@@ -704,7 +720,7 @@ export default function PlansPage() {
         const c = clients.find(x => x.id === newClientPlan.clientId);
         return c ? (
           <NewPlanModal
-            title={`New plan for ${clientName(c)}`}
+            title={de ? `Neuer Plan für ${clientName(c)}` : `New plan for ${clientName(c)}`}
             onSave={(t, d) => createClientPlan(newClientPlan.clientId, t, d)}
             onClose={() => setNewClientPlan(null)}
           />
@@ -713,7 +729,7 @@ export default function PlansPage() {
 
       {newTemplatePlan && (
         <NewPlanModal
-          title="New Template Plan"
+          title={de ? 'Neue Vorlage' : 'New Template Plan'}
           onSave={(t, d) => createTemplatePlan(newTemplatePlan.folderId, t, d)}
           onClose={() => setNewTemplatePlan(null)}
         />
@@ -721,7 +737,7 @@ export default function PlansPage() {
 
       {newFolder && (
         <FolderNameModal
-          heading="New Folder"
+          heading={de ? 'Neuer Ordner' : 'New Folder'}
           onSave={createNewFolder}
           onClose={() => setNewFolder(false)}
         />
@@ -729,7 +745,7 @@ export default function PlansPage() {
 
       {renameFolder && (
         <FolderNameModal
-          heading="Rename Folder"
+          heading={de ? 'Ordner umbenennen' : 'Rename Folder'}
           initial={renameFolder.name}
           onSave={name => renameFolderAction(renameFolder.id, name)}
           onClose={() => setRenameFolder(null)}

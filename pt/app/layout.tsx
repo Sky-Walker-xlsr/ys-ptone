@@ -12,8 +12,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="de" suppressHydrationWarning>
       <head>
-        {/* Anti-FOUC: read theme before React hydration */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('ptone_theme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();` }} />
+        {/* Anti-FOUC: set theme + sidebar width before React hydration */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('ptone_theme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}try{var c=localStorage.getItem('sidebar-collapsed')==='true';document.documentElement.style.setProperty('--sidebar-width',c?'60px':'240px');}catch(e){}})();` }} />
       </head>
       <body>
         <ThemeProvider>

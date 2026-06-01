@@ -1,11 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslation } from '@/locales/index';
 import { dashboard } from '@/locales/dashboard.strings';
-import { useTheme } from '@/styles/theme';
-import { logout } from '@/lib/logout';
 import { createClient } from '@/lib/supabase/client';
 
 const COLLAPSED_WIDTH = '60px';
@@ -44,22 +42,14 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   settings:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
 };
 
-function SunIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>;
-}
-function MoonIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>;
-}
-function LogoutIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
-}
-
 export function Sidebar() {
-  const { t, lang, setLang } = useTranslation();
-  const { themeId, toggle }  = useTheme();
-  const s = t(dashboard);
+  const { t }    = useTranslation();
+  const s        = t(dashboard);
   const pathname = usePathname();
 
+  // Read collapsed state synchronously from localStorage on first render.
+  // The anti-FOUC script in layout.tsx already set --sidebar-width before React,
+  // so we just need to match that state here.
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('sidebar-collapsed') === 'true';
@@ -67,14 +57,18 @@ export function Sidebar() {
 
   const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    document.documentElement.style.setProperty('--sidebar-width', collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH);
+  // useLayoutEffect fires synchronously before paint — no flash between the
+  // script-set value and React's first render.
+  useLayoutEffect(() => {
+    document.documentElement.style.setProperty(
+      '--sidebar-width',
+      collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH,
+    );
     localStorage.setItem('sidebar-collapsed', String(collapsed));
   }, [collapsed]);
 
   useEffect(() => {
     const supabase = createClient();
-
     const fetchUnread = async () => {
       const { count } = await supabase
         .from('contact_requests')
@@ -82,14 +76,11 @@ export function Sidebar() {
         .eq('read', false);
       setUnreadCount(count ?? 0);
     };
-
     fetchUnread();
-
     const channel = supabase
       .channel('inbox-unread')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_requests' }, fetchUnread)
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, []);
 
@@ -124,148 +115,121 @@ export function Sidebar() {
     textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden',
   });
 
-  const iconBtn: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 30, height: 30, borderRadius: 6, background: 'var(--bg-tertiary)',
-    border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer',
-    flexShrink: 0,
-  };
-
   return (
-    <aside style={{
-      width: 'var(--sidebar-width)', flexShrink: 0,
-      background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)',
-      display: 'flex', flexDirection: 'column',
-      height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 50,
-      overflowY: 'auto', overflowX: 'hidden',
-      transition: 'width 0.2s ease',
-    }}>
-
-      {/* Logo */}
-      <div style={{
-        padding: collapsed ? '20px 0 16px' : '20px 16px 16px',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center',
-        justifyContent: collapsed ? 'center' : 'flex-start',
-        flexDirection: 'column',
-        minHeight: 72,
+    <>
+      <aside style={{
+        width: 'var(--sidebar-width)', flexShrink: 0,
+        background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column',
+        height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 50,
+        overflowY: 'auto', overflowX: 'hidden',
+        transition: 'width 0.2s ease',
       }}>
-        {collapsed ? <PTOneIcon /> : (
-          <>
-            <PTOneLogo />
-            <div style={{ fontSize: 11, color: 'var(--text-subtle)', marginTop: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              PT Dashboard
-            </div>
-          </>
-        )}
-      </div>
 
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: collapsed ? '12px 4px' : '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {navItems.map(item => {
-          const active = isActive(item.href);
-          const showBadge = item.key === 'inbox' && unreadCount > 0;
-          return (
+        {/* Logo */}
+        <div style={{
+          padding: collapsed ? '20px 0 16px' : '20px 16px 16px',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          flexDirection: 'column',
+          minHeight: 72,
+        }}>
+          {collapsed ? <PTOneIcon /> : (
+            <>
+              <PTOneLogo />
+              <div style={{ fontSize: 11, color: 'var(--text-subtle)', marginTop: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                PT Dashboard
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: collapsed ? '12px 4px' : '12px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {navItems.map(item => {
+            const active = isActive(item.href);
+            const showBadge = item.key === 'inbox' && unreadCount > 0;
+            return (
+              <a
+                key={item.key}
+                href={item.href}
+                title={collapsed ? item.label : undefined}
+                className={`nav-item${active ? ' active' : ''}`}
+                style={navItemStyle(active)}
+              >
+                <span style={{ opacity: active ? 1 : 0.7, flexShrink: 0, position: 'relative' }}>
+                  {NAV_ICONS[item.key]}
+                  {showBadge && collapsed && (
+                    <span style={{
+                      position: 'absolute', top: -4, right: -4,
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: 'var(--accent)', border: '1.5px solid var(--bg-sidebar)',
+                    }} />
+                  )}
+                </span>
+                {!collapsed && item.label}
+                {showBadge && !collapsed && (
+                  <span style={{
+                    marginLeft: 'auto', minWidth: 18, height: 18, borderRadius: 9,
+                    background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 700,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
+                  }}>
+                    {unreadCount}
+                  </span>
+                )}
+              </a>
+            );
+          })}
+        </nav>
+
+        {/* Bottom — profile + settings only */}
+        <div style={{ padding: collapsed ? '8px 4px 16px' : '8px 8px 16px', borderTop: '1px solid var(--border)' }}>
+          {bottomItems.map(item => (
             <a
               key={item.key}
               href={item.href}
               title={collapsed ? item.label : undefined}
-              className={`nav-item${active ? ' active' : ''}`}
-              style={navItemStyle(active)}
+              className={`nav-item${isActive(item.href) ? ' active' : ''}`}
+              style={{ ...navItemStyle(isActive(item.href)), marginBottom: 2 }}
             >
-              <span style={{ opacity: active ? 1 : 0.7, flexShrink: 0, position: 'relative' }}>
+              <span style={{ opacity: isActive(item.href) ? 1 : 0.7, flexShrink: 0 }}>
                 {NAV_ICONS[item.key]}
-                {showBadge && collapsed && (
-                  <span style={{
-                    position: 'absolute', top: -4, right: -4,
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: 'var(--accent)', border: '1.5px solid var(--bg-sidebar)',
-                  }} />
-                )}
               </span>
               {!collapsed && item.label}
-              {showBadge && !collapsed && (
-                <span style={{
-                  marginLeft: 'auto', minWidth: 18, height: 18, borderRadius: 9,
-                  background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 700,
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
-                }}>
-                  {unreadCount}
-                </span>
-              )}
             </a>
-          );
-        })}
-      </nav>
-
-      {/* Bottom */}
-      <div style={{ padding: collapsed ? '8px 4px 12px' : '8px 8px 12px', borderTop: '1px solid var(--border)' }}>
-        {bottomItems.map(item => (
-          <a
-            key={item.key}
-            href={item.href}
-            title={collapsed ? item.label : undefined}
-            className={`nav-item${isActive(item.href) ? ' active' : ''}`}
-            style={{ ...navItemStyle(isActive(item.href)), marginBottom: 2 }}
-          >
-            <span style={{ opacity: isActive(item.href) ? 1 : 0.7, flexShrink: 0 }}>
-              {NAV_ICONS[item.key]}
-            </span>
-            {!collapsed && item.label}
-          </a>
-        ))}
-
-        {/* Theme + lang */}
-        <div style={{
-          display: 'flex', flexDirection: collapsed ? 'column' : 'row',
-          alignItems: 'center', gap: 6,
-          padding: collapsed ? '8px 0' : '8px 12px', marginTop: 4,
-          justifyContent: collapsed ? 'center' : 'flex-start',
-        }}>
-          <button onClick={toggle} title="Toggle theme" style={iconBtn}>
-            {themeId === 'dark' ? <SunIcon /> : <MoonIcon />}
-          </button>
-          <button onClick={() => setLang(lang === 'de' ? 'en' : 'de')} style={{
-            ...(collapsed ? { ...iconBtn, width: 30, fontSize: 10, fontWeight: 600 } : {
-              padding: '4px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-              background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
-              color: 'var(--text-muted)', cursor: 'pointer',
-            }),
-          }}>
-            {lang === 'de' ? 'EN' : 'DE'}
-          </button>
+          ))}
         </div>
+      </aside>
 
-        {/* Logout */}
-        <button
-          onClick={logout}
-          title={collapsed ? s.logout : undefined}
-          style={{ ...navItemStyle(false), marginTop: 2, color: 'var(--danger)', opacity: 0.8 } as React.CSSProperties}
-        >
-          <span style={{ flexShrink: 0 }}><LogoutIcon /></span>
-          {!collapsed && s.logout}
-        </button>
-
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: '100%', padding: '8px 0', marginTop: 6,
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--text-subtle)', borderRadius: 8,
-            transition: 'color 0.12s',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            {collapsed
-              ? <polyline points="9 18 15 12 9 6"/>
-              : <polyline points="15 18 9 12 15 6"/>
-            }
-          </svg>
-        </button>
-      </div>
-    </aside>
+      {/* Collapse toggle — fixed at the right edge of the sidebar, always same height */}
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        style={{
+          position: 'fixed',
+          left: 'var(--sidebar-width)',
+          bottom: 28,
+          transform: 'translateX(-50%)',
+          zIndex: 60,
+          width: 24, height: 24, borderRadius: '50%',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-subtle)',
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 1px 6px rgba(0,0,0,0.18)',
+          transition: 'left 0.2s ease',
+          padding: 0,
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          {collapsed
+            ? <polyline points="9 18 15 12 9 6"/>
+            : <polyline points="15 18 9 12 15 6"/>
+          }
+        </svg>
+      </button>
+    </>
   );
 }

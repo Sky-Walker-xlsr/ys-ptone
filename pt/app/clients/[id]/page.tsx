@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Sidebar } from '@/components/Sidebar'
 import AddExerciseModal, { type EDBExercise } from '@/components/exercise/AddExerciseModal'
 import { pairSuperset, dissolveSuperset } from '@/lib/supabase/sessions'
+import { useTranslation } from '@/locales'
+import ExerciseVideoManager from '@/components/exercise/ExerciseVideoManager'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -83,22 +85,27 @@ function buildRenderGroups(exercises: PlanExercise[]): RenderGroup[] {
   return groups
 }
 
-function ExerciseMenu({ isInSuperset, canPair, onStartPairing, onDissolve, onReplace, onRemove, onClose }: {
+function ExerciseMenu({ isInSuperset, canPair, onStartPairing, onDissolve, onReplace, onRemove, onVideos, onClose }: {
   isInSuperset: boolean; canPair: boolean
-  onStartPairing: () => void; onDissolve: () => void; onReplace: () => void; onRemove: () => void; onClose: () => void
+  onStartPairing: () => void; onDissolve: () => void; onReplace: () => void; onRemove: () => void
+  onVideos: () => void; onClose: () => void
 }) {
+  const { lang } = useTranslation()
+  const de = lang === 'de'
   const item = (danger = false, disabled = false): React.CSSProperties => ({ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', background: 'transparent', cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 13, textAlign: 'left', color: disabled ? 'var(--text-subtle)' : danger ? 'var(--danger)' : 'var(--text-primary)', opacity: disabled ? 0.4 : 1, fontFamily: 'inherit' })
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={onClose} />
       <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 190, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 6, zIndex: 99, boxShadow: '0 12px 32px rgba(0,0,0,0.3)' }}>
-        {isInSuperset
-          ? <button onClick={() => { onDissolve(); onClose() }} style={{ ...item(), color: 'var(--warning)' }}>Dissolve Superset</button>
-          : <button onClick={() => { if (canPair) { onStartPairing(); onClose() } }} disabled={!canPair} style={item(false, !canPair)}>Add to Superset</button>
-        }
-        <button onClick={() => { onReplace(); onClose() }} style={item()}>Replace Exercise</button>
+        <button onClick={() => { onVideos(); onClose() }} style={item()}>📹 {de ? 'Videos verwalten' : 'Manage videos'}</button>
         <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-        <button onClick={() => { onRemove(); onClose() }} style={item(true)}>Remove Exercise</button>
+        {isInSuperset
+          ? <button onClick={() => { onDissolve(); onClose() }} style={{ ...item(), color: 'var(--warning)' }}>{de ? 'Superset auflösen' : 'Dissolve Superset'}</button>
+          : <button onClick={() => { if (canPair) { onStartPairing(); onClose() } }} disabled={!canPair} style={item(false, !canPair)}>{de ? 'Zu Superset hinzufügen' : 'Add to Superset'}</button>
+        }
+        <button onClick={() => { onReplace(); onClose() }} style={item()}>{de ? 'Übung ersetzen' : 'Replace Exercise'}</button>
+        <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+        <button onClick={() => { onRemove(); onClose() }} style={item(true)}>{de ? 'Übung entfernen' : 'Remove Exercise'}</button>
       </div>
     </>
   )
@@ -140,6 +147,7 @@ function PlanEditorPanel({ planId }: { planId: string }) {
   const [supersetPickingFor, setSupersetPickingFor] = useState<string | null>(null)
   const [menuOpenId,         setMenuOpenId]         = useState<string | null>(null)
   const [replacingId,        setReplacingId]        = useState<string | null>(null)
+  const [videoManagerEx,     setVideoManagerEx]     = useState<PlanExercise | null>(null)
 
   useEffect(() => {
     setLoading(true); setSaved(false)
@@ -271,7 +279,7 @@ function PlanEditorPanel({ planId }: { planId: string }) {
           </div>
           <div style={{ position: 'relative' }}>
             <button onClick={() => !supersetPickingFor && setMenuOpenId(isMenuOpen ? null : ex.id)} style={{ background: isMenuOpen ? 'var(--bg-tertiary)' : 'none', border: 'none', borderRadius: 6, color: 'var(--text-muted)', fontSize: 18, padding: '4px 8px', cursor: 'pointer', opacity: supersetPickingFor && supersetPickingFor !== ex.id ? 0.3 : 1 }}>···</button>
-            {isMenuOpen && <ExerciseMenu isInSuperset={isInSS} canPair={canPair} onStartPairing={() => setSupersetPickingFor(ex.id)} onDissolve={() => ex.superset_group && handleSupersetDissolve(ex.superset_group)} onReplace={() => setReplacingId(ex.id)} onRemove={() => removeExercise(ex.id)} onClose={() => setMenuOpenId(null)} />}
+            {isMenuOpen && <ExerciseMenu isInSuperset={isInSS} canPair={canPair} onStartPairing={() => setSupersetPickingFor(ex.id)} onDissolve={() => ex.superset_group && handleSupersetDissolve(ex.superset_group)} onReplace={() => setReplacingId(ex.id)} onRemove={() => removeExercise(ex.id)} onVideos={() => setVideoManagerEx(ex)} onClose={() => setMenuOpenId(null)} />}
           </div>
         </div>
         <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -349,8 +357,32 @@ function PlanEditorPanel({ planId }: { planId: string }) {
 
       {showAddExercise && <AddExerciseModal onAdd={addExercise}     onClose={() => setShowAddExercise(false)} />}
       {replacingId      && <AddExerciseModal onAdd={replaceExercise} onClose={() => setReplacingId(null)}     />}
+
+      {/* Exercise video manager (PT uploads demo videos for this exercise) */}
+      {videoManagerEx && videoManagerEx.exercise_id && (() => {
+        const exName = videoManagerEx.edbData?.name ?? videoManagerEx.exercises?.name ?? 'Exercise'
+        return (
+          <ExerciseVideoManagerWrapper
+            exerciseId={videoManagerEx.exercise_id}
+            exerciseName={exName}
+            onClose={() => setVideoManagerEx(null)}
+          />
+        )
+      })()}
     </div>
   )
+}
+
+// Wrapper that resolves the PT id from the current session
+function ExerciseVideoManagerWrapper({ exerciseId, exerciseName, onClose }: { exerciseId: string; exerciseName: string; onClose: () => void }) {
+  const [ptId, setPtId] = useState('')
+  useEffect(() => {
+    createClient().auth.getSession().then(({ data: { session } }) => {
+      if (session) setPtId(session.user.id)
+    })
+  }, [])
+  if (!ptId) return null
+  return <ExerciseVideoManager exerciseId={exerciseId} exerciseName={exerciseName} ptId={ptId} onClose={onClose} />
 }
 
 // ─── Plans Tab ───────────────────────────────────────────────────────────────
@@ -361,6 +393,8 @@ function PlansTab({ clientId, assignedPlans, ownPlans, trainerId }: {
   ownPlans: OwnPlan[]
   trainerId: string
 }) {
+  const { lang } = useTranslation()
+  const de = lang === 'de'
   const supabase = useMemo(() => createClient(), [])
   const [myPlans, setMyPlans] = useState<{ id: string; title: string }[]>([])
   const [showAssignModal, setShowAssignModal] = useState(false)
@@ -428,20 +462,20 @@ function PlansTab({ clientId, assignedPlans, ownPlans, trainerId }: {
       {/* Left: plan list */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Assigned Plans</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{de ? 'Zugewiesene Pläne' : 'Assigned Plans'}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setShowAssignModal(true)} disabled={assigning || unassignedPlans.length === 0} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, background: 'var(--bg-card)', border: '1px solid var(--border-strong)', color: 'var(--text-primary)', cursor: unassignedPlans.length === 0 ? 'not-allowed' : 'pointer', opacity: unassignedPlans.length === 0 ? 0.5 : 1, fontFamily: 'inherit' }}>
-              + Add template
+              {de ? '+ Vorlage' : '+ Add template'}
             </button>
             <button onClick={createAndAssign} disabled={assigning} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-              {assigning ? '…' : '+ New'}
+              {assigning ? '…' : (de ? '+ Neu' : '+ New')}
             </button>
           </div>
         </div>
 
         {assigned.length === 0 ? (
           <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border-strong)', borderRadius: 12, padding: '32px 20px', textAlign: 'center' }}>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No plans assigned yet.</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{de ? 'Noch keine Pläne zugewiesen.' : 'No plans assigned yet.'}</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 20 }}>
@@ -482,7 +516,7 @@ function PlansTab({ clientId, assignedPlans, ownPlans, trainerId }: {
 
         {ownPlans.length > 0 && (
           <>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client's own plans</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{de ? 'Eigene Pläne des Clients' : "Client's own plans"}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {ownPlans.map(p => (
                 <div key={p.id} style={{ padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -504,7 +538,7 @@ function PlansTab({ clientId, assignedPlans, ownPlans, trainerId }: {
           <PlanEditorPanel planId={selectedPlanId} />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 280, background: 'var(--bg-card)', border: '1px dashed var(--border-strong)', borderRadius: 14 }}>
-            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>Select a plan to edit</p>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>{de ? 'Plan auswählen zum Bearbeiten' : 'Select a plan to edit'}</p>
           </div>
         )}
       </div>
@@ -514,7 +548,7 @@ function PlansTab({ clientId, assignedPlans, ownPlans, trainerId }: {
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
           onClick={e => e.target === e.currentTarget && setShowAssignModal(false)}>
           <div style={{ width: '100%', maxWidth: 440, background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 20, padding: 28, boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>Assign a plan</h3>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>{de ? 'Plan zuweisen' : 'Assign a plan'}</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
               {unassignedPlans.map(p => (
                 <button key={p.id} onClick={() => assignPlan(p.id)} style={{ width: '100%', padding: '12px 16px', borderRadius: 10, background: 'var(--bg-tertiary)', border: '1px solid var(--border)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
@@ -522,7 +556,7 @@ function PlansTab({ clientId, assignedPlans, ownPlans, trainerId }: {
                 </button>
               ))}
             </div>
-            <button onClick={() => setShowAssignModal(false)} style={{ marginTop: 16, width: '100%', padding: '10px', borderRadius: 8, background: 'none', border: '1px solid var(--border-strong)', color: 'var(--text-muted)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button onClick={() => setShowAssignModal(false)} style={{ marginTop: 16, width: '100%', padding: '10px', borderRadius: 8, background: 'none', border: '1px solid var(--border-strong)', color: 'var(--text-muted)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>{de ? 'Abbrechen' : 'Cancel'}</button>
           </div>
         </div>
       )}
@@ -533,6 +567,8 @@ function PlansTab({ clientId, assignedPlans, ownPlans, trainerId }: {
 // ─── Logbook session detail (right panel) ────────────────────────────────────
 
 function LogbookSessionDetail({ session }: { session: Session }) {
+  const { lang } = useTranslation()
+  const de = lang === 'de'
   const supabase = useMemo(() => createClient(), [])
   const [exercises, setExercises] = useState<{ id: string; name: string; image_url: string | null }[]>([])
   const [sets, setSets] = useState<{ id: string; workout_exercise_id: string; set_number: number; weight_kg: number | null; reps: number | null; is_completed: boolean }[]>([])
@@ -590,7 +626,7 @@ function LogbookSessionDetail({ session }: { session: Session }) {
           <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--border-strong)', borderTopColor: 'var(--accent)', animation: 'spin 0.7s linear infinite' }} />
         </div>
       ) : exercises.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '28px', fontSize: 13, color: 'var(--text-muted)' }}>No exercises recorded</div>
+        <div style={{ textAlign: 'center', padding: '28px', fontSize: 13, color: 'var(--text-muted)' }}>{de ? 'Keine Übungen aufgezeichnet' : 'No exercises recorded'}</div>
       ) : (
         <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {exercises.map(ex => {
@@ -609,10 +645,10 @@ function LogbookSessionDetail({ session }: { session: Session }) {
                   </span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr', padding: '5px 10px', background: 'var(--bg-page)', borderBottom: '1px solid var(--border)' }}>
-                  {['#', 'kg', 'Reps'].map(h => <span key={h} style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', fontWeight: 500 }}>{h}</span>)}
+                  {['#', 'kg', de ? 'Wdh.' : 'Reps'].map(h => <span key={h} style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', fontWeight: 500 }}>{h}</span>)}
                 </div>
                 {exSets.length === 0
-                  ? <div style={{ padding: '8px', fontSize: 12, color: 'var(--text-subtle)', textAlign: 'center' }}>No sets</div>
+                  ? <div style={{ padding: '8px', fontSize: 12, color: 'var(--text-subtle)', textAlign: 'center' }}>{de ? 'Keine Sätze' : 'No sets'}</div>
                   : exSets.map(s => (
                     <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr', padding: '7px 10px', borderBottom: '1px solid var(--border)', alignItems: 'center', background: s.is_completed ? 'rgba(62,207,142,0.05)' : 'transparent', opacity: s.is_completed ? 1 : 0.45 }}>
                       <span style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>{s.set_number}</span>
@@ -633,13 +669,15 @@ function LogbookSessionDetail({ session }: { session: Session }) {
 // ─── Logbook Tab ─────────────────────────────────────────────────────────────
 
 function LogbookTab({ sessions }: { sessions: Session[] }) {
+  const { lang } = useTranslation()
+  const de = lang === 'de'
   const [selectedId, setSelectedId] = useState<string | null>(sessions[0]?.id ?? null)
   const selectedSession = sessions.find(s => s.id === selectedId) ?? null
 
   if (sessions.length === 0) return (
     <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border-strong)', borderRadius: 14, padding: '48px', textAlign: 'center' }}>
       <div style={{ fontSize: 32, marginBottom: 12 }}>📓</div>
-      <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>No completed workouts yet.</p>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>{de ? 'Noch keine abgeschlossenen Workouts.' : 'No completed workouts yet.'}</p>
     </div>
   )
 
@@ -1124,6 +1162,8 @@ function ClientInvoicesTab({ clientId, trainerId, client, accessToken }: {
   clientId: string; trainerId: string;
   client: ClientProfile | null; accessToken: string;
 }) {
+  const { lang } = useTranslation()
+  const de = lang === 'de'
   const supabase = useMemo(() => createClient(), [])
   const [invoices,  setInvoices]  = useState<AccInvoice[]>([])
   const [settings,  setSettings]  = useState<AccSettings | null>(null)
@@ -1257,14 +1297,14 @@ function ClientInvoicesTab({ clientId, trainerId, client, accessToken }: {
       <div onClick={e => { if (e.target === e.currentTarget) setShowNew(false) }} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, width: '100%', maxWidth: 680, padding: 28, maxHeight: '90vh', overflowY: 'auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Neue Rechnung — {client?.display_name || client?.first_name || 'Client'}</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{de ? 'Neue Rechnung' : 'New invoice'} — {client?.display_name || client?.first_name || 'Client'}</h3>
             <button onClick={() => setShowNew(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text-muted)' }}>×</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={{ gridColumn: '1 / -1' }}><label style={lStyle}>Titel *</label><input value={title} onChange={e => setTitle(e.target.value)} style={fStyle} placeholder="z.B. Coaching Mai" /></div>
-              <div><label style={lStyle}>Fälligkeitsdatum</label><input type="date" value={due} onChange={e => setDue(e.target.value)} style={fStyle} /></div>
-              <div><label style={lStyle}>MwSt. (%)</label><input type="number" value={tax} onChange={e => setTax(e.target.value)} style={fStyle} /></div>
+              <div style={{ gridColumn: '1 / -1' }}><label style={lStyle}>{de ? 'Titel *' : 'Title *'}</label><input value={title} onChange={e => setTitle(e.target.value)} style={fStyle} placeholder={de ? 'z.B. Coaching Mai' : 'e.g. Coaching May'} /></div>
+              <div><label style={lStyle}>{de ? 'Fälligkeitsdatum' : 'Due date'}</label><input type="date" value={due} onChange={e => setDue(e.target.value)} style={fStyle} /></div>
+              <div><label style={lStyle}>{de ? 'MwSt. (%)' : 'Tax rate (%)'}</label><input type="number" value={tax} onChange={e => setTax(e.target.value)} style={fStyle} /></div>
             </div>
 
             {/* Line items */}
@@ -1272,7 +1312,7 @@ function ClientInvoicesTab({ clientId, trainerId, client, accessToken }: {
               <label style={lStyle}>Positionen</label>
               <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 90px 90px 28px' }}>
-                  {['Beschreibung', 'Menge', 'Preis', currency, ''].map((h, i) => (
+                  {[de ? 'Beschreibung' : 'Description', de ? 'Menge' : 'Qty', de ? 'Preis' : 'Price', currency, ''].map((h, i) => (
                     <div key={i} style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text-subtle)', background: 'var(--bg-tertiary)', fontWeight: 600 }}>{h}</div>
                   ))}
                 </div>
@@ -1286,25 +1326,25 @@ function ClientInvoicesTab({ clientId, trainerId, client, accessToken }: {
                   </div>
                 ))}
                 <button onClick={() => setItems(p => [...p, { description: '', quantity: '1', unit_price: '' }])} style={{ width: '100%', padding: '7px 10px', fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
-                  + Position hinzufügen
+                  {de ? '+ Position hinzufügen' : '+ Add line item'}
                 </button>
               </div>
             </div>
 
             {/* Totals */}
             <div style={{ background: 'var(--bg-tertiary)', borderRadius: 8, padding: '10px 14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}><span>Zwischensumme</span><span>{fmtMoney(subtotal)}</span></div>
-              {taxNum > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}><span>MwSt. {taxNum}%</span><span>{fmtMoney(taxAmt)}</span></div>}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', borderTop: '1px solid var(--border)', paddingTop: 8 }}><span>Gesamt</span><span>{fmtMoney(total)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}><span>{de ? 'Zwischensumme' : 'Subtotal'}</span><span>{fmtMoney(subtotal)}</span></div>
+              {taxNum > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}><span>{de ? 'MwSt.' : 'Tax'} {taxNum}%</span><span>{fmtMoney(taxAmt)}</span></div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', borderTop: '1px solid var(--border)', paddingTop: 8 }}><span>{de ? 'Gesamt' : 'Total'}</span><span>{fmtMoney(total)}</span></div>
             </div>
 
-            <div><label style={lStyle}>Bemerkungen</label><textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ ...fStyle, resize: 'vertical' }} /></div>
+            <div><label style={lStyle}>{de ? 'Bemerkungen' : 'Notes'}</label><textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} style={{ ...fStyle, resize: 'vertical' }} /></div>
 
             {error && <div style={{ fontSize: 13, color: 'var(--danger)', background: 'rgba(240,68,68,0.1)', borderRadius: 7, padding: '8px 12px' }}>⚠ {error}</div>}
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowNew(false)} style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, background: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>Abbrechen</button>
-              <button onClick={create} disabled={isSaving || !title} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: 'var(--accent)', border: 'none', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', opacity: !title ? 0.5 : 1 }}>{isSaving ? '...' : 'Erstellen'}</button>
+              <button onClick={() => setShowNew(false)} style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, background: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>{de ? 'Abbrechen' : 'Cancel'}</button>
+              <button onClick={create} disabled={isSaving || !title} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: 'var(--accent)', border: 'none', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', opacity: !title ? 0.5 : 1 }}>{isSaving ? '...' : (de ? 'Erstellen' : 'Create')}</button>
             </div>
           </div>
         </div>
@@ -1319,9 +1359,9 @@ function ClientInvoicesTab({ clientId, trainerId, client, accessToken }: {
       {showNew && <NewInvoiceModal />}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Rechnungen</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{de ? 'Rechnungen' : 'Invoices'}</h2>
         <button onClick={() => setShowNew(true)} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-          + Rechnung erstellen
+          + {de ? 'Rechnung erstellen' : 'New invoice'}
         </button>
       </div>
 
@@ -1332,8 +1372,8 @@ function ClientInvoicesTab({ clientId, trainerId, client, accessToken }: {
       ) : invoices.length === 0 ? (
         <div style={{ background: 'var(--bg-card)', border: '1px dashed var(--border-strong)', borderRadius: 14, padding: '60px 40px', textAlign: 'center' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>🧾</div>
-          <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>Noch keine Rechnungen für diesen Client.</p>
-          <button onClick={() => setShowNew(true)} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>+ Erste Rechnung erstellen</button>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>{de ? 'Noch keine Rechnungen für diesen Client.' : 'No invoices yet for this client.'}</p>
+          <button onClick={() => setShowNew(true)} style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>+ {de ? 'Erste Rechnung erstellen' : 'Create first invoice'}</button>
         </div>
       ) : (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
@@ -1344,7 +1384,7 @@ function ClientInvoicesTab({ clientId, trainerId, client, accessToken }: {
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>{inv.invoice_number}</span>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{inv.title}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-subtle)' }}>{fmtDt(inv.issue_date)}{inv.due_date ? ` · fällig ${fmtDt(inv.due_date)}` : ''}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-subtle)' }}>{fmtDt(inv.issue_date)}{inv.due_date ? ` · ${de ? 'fällig' : 'due'} ${fmtDt(inv.due_date)}` : ''}</div>
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: `${color}22`, color, border: `1px solid ${color}44`, whiteSpace: 'nowrap' }}>{inv.status}</span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{fmtMoney(inv.total)}</span>
@@ -1352,11 +1392,11 @@ function ClientInvoicesTab({ clientId, trainerId, client, accessToken }: {
                   <button onClick={() => downloadPDF(inv)} style={{ padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 500, background: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>⬇ PDF</button>
                   {inv.status === 'draft' && (
                     <button onClick={() => sendInvoice(inv)} disabled={sending === inv.id} style={{ padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'var(--accent)', border: 'none', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', opacity: sending === inv.id ? 0.6 : 1 }}>
-                      {sending === inv.id ? '...' : '✉ Senden'}
+                      {sending === inv.id ? '...' : `✉ ${de ? 'Senden' : 'Send'}`}
                     </button>
                   )}
                   {inv.status !== 'paid' && inv.status !== 'cancelled' && inv.status !== 'draft' && (
-                    <button onClick={() => markPaid(inv)} style={{ padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'var(--success)', border: 'none', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Bezahlt</button>
+                    <button onClick={() => markPaid(inv)} style={{ padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'var(--success)', border: 'none', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>{de ? 'Bezahlt' : 'Mark paid'}</button>
                   )}
                 </div>
               </div>
@@ -1370,19 +1410,15 @@ function ClientInvoicesTab({ clientId, trainerId, client, accessToken }: {
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'plans',     label: 'Plans'     },
-  { id: 'logbook',   label: 'Logbook'   },
-  { id: 'journal',   label: 'Journal'   },
-  { id: 'documents', label: 'Documents' },
-  { id: 'invoices',  label: 'Invoices'  },
-]
+// TABS is now built inside the component using the `de` flag
 
 export default function ClientDetailPage() {
   const router   = useRouter()
   const params   = useParams<{ id: string }>()
   const clientId = params.id
   const supabase = useMemo(() => createClient(), [])
+  const { lang } = useTranslation()
+  const de = lang === 'de'
 
   const [loading,       setLoading]       = useState(true)
   const [trainerId,     setTrainerId]     = useState<string>('')
@@ -1445,6 +1481,14 @@ export default function ClientDetailPage() {
 
   const initials = getInitials(client)
   const name = getDisplayName(client)
+
+  const TABS: { id: Tab; label: string }[] = [
+    { id: 'plans',     label: de ? 'Pläne'        : 'Plans'     },
+    { id: 'logbook',   label: de ? 'Trainingsbuch' : 'Logbook'  },
+    { id: 'journal',   label: de ? 'Journal'       : 'Journal'  },
+    { id: 'documents', label: de ? 'Dokumente'     : 'Documents'},
+    { id: 'invoices',  label: de ? 'Rechnungen'    : 'Invoices' },
+  ]
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-page)' }}>

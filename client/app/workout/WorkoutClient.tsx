@@ -4,6 +4,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AddExerciseModal, { type ExerciseOption } from '@/components/exercise/AddExerciseModal'
+import ExerciseVideos from '@/components/ExerciseVideos'
+
+// Thin wrapper — only renders if the exercise has PT videos (checked inside ExerciseVideos)
+function ExerciseVideosBanner({ exerciseId }: { exerciseId: string }) {
+  return <ExerciseVideos exerciseId={exerciseId} />
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface WorkoutExercise {
@@ -561,6 +567,11 @@ export default function WorkoutClient() {
         {/* Note */}
         <div style={{ paddingLeft: 46 }}>
           <NoteInline exerciseId={ex.exercise_id} userId={userId} initialNote={initialNotes[ex.exercise_id] ?? ''} supabase={supabase} />
+        </div>
+
+        {/* PT Videos */}
+        <div style={{ paddingLeft: 46 }}>
+          <ExerciseVideosBanner exerciseId={ex.exercise_id} />
         </div>
 
         {/* Sets */}

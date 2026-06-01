@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Sidebar } from '@/components/Sidebar'
 import AddExerciseModal, { type EDBExercise } from '@/components/exercise/AddExerciseModal'
 import { pairSuperset, dissolveSuperset } from '@/lib/supabase/sessions'
+import { useTranslation } from '@/locales'
+import ExerciseVideoManager from '@/components/exercise/ExerciseVideoManager'
 
 interface PlanSet {
   id?: string
@@ -45,22 +47,27 @@ function buildRenderGroups(exercises: PlanExercise[]): RenderGroup[] {
   return groups
 }
 
-function ExerciseMenu({ isInSuperset, canPair, onStartPairing, onDissolve, onReplace, onRemove, onClose }: {
+function ExerciseMenu({ isInSuperset, canPair, onStartPairing, onDissolve, onReplace, onRemove, onVideos, onClose }: {
   isInSuperset: boolean; canPair: boolean
-  onStartPairing: () => void; onDissolve: () => void; onReplace: () => void; onRemove: () => void; onClose: () => void
+  onStartPairing: () => void; onDissolve: () => void; onReplace: () => void; onRemove: () => void
+  onVideos: () => void; onClose: () => void
 }) {
+  const { lang } = useTranslation()
+  const de = lang === 'de'
   const item = (danger = false, disabled = false): React.CSSProperties => ({ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: 'none', background: 'transparent', cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 13, textAlign: 'left', color: disabled ? 'var(--text-subtle)' : danger ? 'var(--danger)' : 'var(--text-primary)', opacity: disabled ? 0.4 : 1, fontFamily: 'inherit' })
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={onClose} />
       <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, minWidth: 200, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 6, zIndex: 99, boxShadow: '0 12px 32px rgba(0,0,0,0.3)' }}>
-        {isInSuperset
-          ? <button onClick={() => { onDissolve(); onClose() }} style={{ ...item(), color: 'var(--warning)' }}>Dissolve Superset</button>
-          : <button onClick={() => { if (canPair) { onStartPairing(); onClose() } }} disabled={!canPair} style={item(false, !canPair)}>Add to Superset</button>
-        }
-        <button onClick={() => { onReplace(); onClose() }} style={item()}>Replace Exercise</button>
+        <button onClick={() => { onVideos(); onClose() }} style={item()}>📹 {de ? 'Videos verwalten' : 'Manage videos'}</button>
         <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-        <button onClick={() => { onRemove(); onClose() }} style={item(true)}>Remove Exercise</button>
+        {isInSuperset
+          ? <button onClick={() => { onDissolve(); onClose() }} style={{ ...item(), color: 'var(--warning)' }}>{de ? 'Superset auflösen' : 'Dissolve Superset'}</button>
+          : <button onClick={() => { if (canPair) { onStartPairing(); onClose() } }} disabled={!canPair} style={item(false, !canPair)}>{de ? 'Zu Superset hinzufügen' : 'Add to Superset'}</button>
+        }
+        <button onClick={() => { onReplace(); onClose() }} style={item()}>{de ? 'Übung ersetzen' : 'Replace Exercise'}</button>
+        <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+        <button onClick={() => { onRemove(); onClose() }} style={item(true)}>{de ? 'Übung entfernen' : 'Remove Exercise'}</button>
       </div>
     </>
   )
@@ -83,6 +90,12 @@ export default function ClientPlanEditPage() {
   const [menuOpenId,         setMenuOpenId]         = useState<string | null>(null)
   const [replacingId,        setReplacingId]        = useState<string | null>(null)
   const [clientName,         setClientName]         = useState('')
+  const [videoManagerEx,     setVideoManagerEx]     = useState<PlanExercise | null>(null)
+  const [ptId,               setPtId]               = useState('')
+
+  useEffect(() => {
+    createClient().auth.getSession().then(({ data: { session } }) => { if (session) setPtId(session.user.id) })
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -226,7 +239,7 @@ export default function ClientPlanEditPage() {
           </div>
           <div style={{ position: 'relative' }}>
             <button onClick={() => !supersetPickingFor && setMenuOpenId(isMenuOpen ? null : ex.id)} style={{ background: isMenuOpen ? 'var(--bg-tertiary)' : 'none', border: 'none', borderRadius: 6, color: 'var(--text-muted)', fontSize: 18, padding: '4px 8px', cursor: 'pointer', opacity: supersetPickingFor && supersetPickingFor !== ex.id ? 0.3 : 1 }}>···</button>
-            {isMenuOpen && <ExerciseMenu isInSuperset={isInSS} canPair={canPair} onStartPairing={() => setSupersetPickingFor(ex.id)} onDissolve={() => ex.superset_group && handleSupersetDissolve(ex.superset_group)} onReplace={() => setReplacingId(ex.id)} onRemove={() => removeExercise(ex.id)} onClose={() => setMenuOpenId(null)} />}
+            {isMenuOpen && <ExerciseMenu isInSuperset={isInSS} canPair={canPair} onStartPairing={() => setSupersetPickingFor(ex.id)} onDissolve={() => ex.superset_group && handleSupersetDissolve(ex.superset_group)} onReplace={() => setReplacingId(ex.id)} onRemove={() => removeExercise(ex.id)} onVideos={() => setVideoManagerEx(ex)} onClose={() => setMenuOpenId(null)} />}
           </div>
         </div>
         <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -317,6 +330,14 @@ export default function ClientPlanEditPage() {
 
       {showAddExercise && <AddExerciseModal onAdd={addExercise}     onClose={() => setShowAddExercise(false)} />}
       {replacingId      && <AddExerciseModal onAdd={replaceExercise} onClose={() => setReplacingId(null)}     />}
+      {videoManagerEx && ptId && (
+        <ExerciseVideoManager
+          exerciseId={videoManagerEx.exercise_id}
+          exerciseName={videoManagerEx.edbData?.name ?? videoManagerEx.exercises?.name ?? 'Exercise'}
+          ptId={ptId}
+          onClose={() => setVideoManagerEx(null)}
+        />
+      )}
     </div>
   )
 }

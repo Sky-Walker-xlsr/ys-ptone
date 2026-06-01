@@ -6,6 +6,7 @@ import { useTranslation } from '@/locales';
 import { useTheme } from '@/styles/theme';
 import { dashboard } from '@/locales/dashboard.strings';
 import { createClient } from '@/lib/supabase/client';
+import { logout } from '@/lib/logout';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -248,6 +249,15 @@ export default function SettingsPage() {
             control={
               <button style={{ ...btnBase, background: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
                 {de ? 'Export' : 'Export'}
+              </button>
+            }
+          />
+          <SettingRow
+            label={de ? 'Abmelden' : 'Sign out'}
+            description={de ? 'Von diesem Gerät abmelden' : 'Sign out of this device'}
+            control={
+              <button onClick={logout} style={{ ...btnBase, background: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+                {de ? 'Abmelden' : 'Sign out'}
               </button>
             }
           />
