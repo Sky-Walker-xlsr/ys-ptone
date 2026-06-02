@@ -13,14 +13,15 @@ export default function ContactPage() {
   const [form, setForm]     = useState({ name: '', email: '', message: '' });
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setStatus('loading');
     try {
-      const res = await fetch('/api/contact', {
+      // Formspree — no backend needed, works on Cloudflare Workers too
+      const res = await fetch('https://formspree.io/f/mreybznj', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(form),
+        body:    new FormData(e.currentTarget),
+        headers: { Accept: 'application/json' },
       });
       if (!res.ok) throw new Error('failed');
       setStatus('success');
@@ -66,8 +67,8 @@ export default function ContactPage() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {[
-                  { icon: '✉️', label: 'Email', value: 'info@yannicksalm.ch', href: 'mailto:info@yannicksalm.ch' },
-                  { icon: '📍', label: 'Standort', value: 'Zürich, Schweiz' },
+                  { icon: '✉️', label: 'Email', value: 'yannicksalm07@gmail.com', href: 'mailto:yannicksalm07@gmail.com' },
+                  { icon: '📍', label: 'Standort', value: 'Aarau, Schweiz' },
                   { icon: '⏱',  label: 'Antwortzeit', value: '< 24 Stunden' },
                 ].map((item, i) => (
                   <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -98,22 +99,24 @@ export default function ContactPage() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {/* Hidden source field so Formspree emails know this is from PTOne */}
+                  <input type="hidden" name="_subject" value="PTOne Kontaktformular" />
                   {[
-                    { label: s.contactName,    key: 'name',    type: 'text',  ph: 'Max Mustermann' },
-                    { label: s.contactEmail,   key: 'email',   type: 'email', ph: 'max@example.com' },
+                    { label: s.contactName,    key: 'name',  type: 'text',  ph: 'Max Mustermann' },
+                    { label: s.contactEmail,   key: 'email', type: 'email', ph: 'max@example.com' },
                   ].map(f => (
                     <div key={f.key}>
                       <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6 }}>{f.label}</label>
                       <input
-                        className="input" type={f.type} required placeholder={f.ph}
-                        value={(form as any)[f.key]}
+                        className="input" type={f.type} name={f.key} required placeholder={f.ph}
+                        value={(form as Record<string,string>)[f.key]}
                         onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                       />
                     </div>
                   ))}
                   <div>
                     <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6 }}>{s.contactMessage}</label>
-                    <textarea className="input" required rows={5} placeholder="Deine Nachricht…"
+                    <textarea className="input" name="message" required rows={5} placeholder="Deine Nachricht…"
                       value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))} />
                   </div>
 

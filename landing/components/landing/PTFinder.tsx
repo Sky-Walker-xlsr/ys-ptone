@@ -1,55 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from '@/locales';
 import { home } from '@/locales/home.strings';
-
-// Placeholder PT cards (werden später aus Supabase geladen), wichtig in supabase und pt-dashboard en und de!
-const PLACEHOLDER_PTS = [
-  {
-    name:            'Yannick Salm',
-    slug:            'yannick-salm',
-    location:        'Zürich, CH',
-    specializations: ['Muskelaufbau', 'Gewichtsabnahme', 'Ernährungsberatung'],
-    languages:       ['DE', 'EN'],
-    yearsExp:        6,
-    shortBio:        'Zertifizierter Personal Trainer mit Fokus auf nachhaltige Körpertransformation und individuelle Betreuung.',
-    initials:        'YS',
-    color:           '#7c6aff',
-  },
-  {
-    name:            'Lena Müller',
-    slug:            'lena-mueller',
-    location:        'Basel, CH',
-    specializations: ['Ausdauer', 'Rehabilitation', 'Yoga'],
-    languages:       ['DE'],
-    yearsExp:        4,
-    shortBio:        'Spezialisiert auf funktionelles Training und Rehabilitation nach Verletzungen.',
-    initials:        'LM',
-    color:           '#3ecf8e',
-  },
-  {
-    name:            'Marco Bianchi',
-    slug:            'marco-bianchi',
-    location:        'Bern, CH',
-    specializations: ['Kraftsport', 'Muskelaufbau', 'Wettkampf-Vorbereitung'],
-    languages:       ['DE', 'IT', 'EN'],
-    yearsExp:        9,
-    shortBio:        'Ehemaliger Wettkampf-Athlet, heute Trainer für ambitionierte Kraftsportler und Bodybuilder.',
-    initials:        'MB',
-    color:           '#f5a623',
-  },
-];
+import { fetchPublicPTs, type PT } from '@/lib/pt-data';
 
 export function PTFinder() {
   const { t, lang } = useTranslation();
   const s = t(home);
   const [query, setQuery] = useState('');
+  const [pts, setPts]     = useState<PT[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = PLACEHOLDER_PTS.filter(pt =>
+  useEffect(() => {
+    fetchPublicPTs().then(data => { setPts(data); setLoading(false); });
+  }, []);
+
+  const filtered = pts.filter(pt =>
     query === '' ||
     pt.name.toLowerCase().includes(query.toLowerCase()) ||
-    pt.location.toLowerCase().includes(query.toLowerCase()) ||
+    (pt.location ?? '').toLowerCase().includes(query.toLowerCase()) ||
     pt.specializations.some(sp => sp.toLowerCase().includes(query.toLowerCase()))
   );
 
@@ -85,10 +55,27 @@ export function PTFinder() {
         </div>
 
         {/* PT Cards */}
-        {filtered.length > 0 ? (
+        {loading ? (
+          /* Skeleton */
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20, marginBottom: 40 }}>
-            {filtered.map((pt, i) => (
-              <div key={i} className="card" style={{ padding: 24 }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} className="card" style={{ padding: 24, height: 220 }}>
+                <div style={{ display: 'flex', gap: 14, marginBottom: 16 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg-tertiary)', flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ height: 14, background: 'var(--bg-tertiary)', borderRadius: 6, marginBottom: 8, width: '60%' }} />
+                    <div style={{ height: 12, background: 'var(--bg-tertiary)', borderRadius: 6, width: '40%' }} />
+                  </div>
+                </div>
+                <div style={{ height: 12, background: 'var(--bg-tertiary)', borderRadius: 6, marginBottom: 8 }} />
+                <div style={{ height: 12, background: 'var(--bg-tertiary)', borderRadius: 6, width: '70%' }} />
+              </div>
+            ))}
+          </div>
+        ) : filtered.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20, marginBottom: 40 }}>
+            {filtered.map(pt => (
+              <div key={pt.slug} className="card" style={{ padding: 24 }}>
                 {/* Header */}
                 <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 16 }}>
                   <div style={{
@@ -111,14 +98,17 @@ export function PTFinder() {
                     <div style={{ fontWeight: 600, fontSize: 16, color: 'var(--text-primary)' }}>{pt.name}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                      {pt.location}
+                      {pt.location ?? '—'}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-subtle)', marginTop: 2 }}>
-                      {pt.yearsExp} {lang === 'de' ? 'Jahre Erfahrung' : 'years experience'}
-                    </div>
+                    {pt.yearsExp != null && (
+                      <div style={{ fontSize: 12, color: 'var(--text-subtle)', marginTop: 2 }}>
+                        {pt.yearsExp} {lang === 'de' ? 'Jahre Erfahrung' : 'years experience'}
+                        {pt.priceFrom ? ` · ${pt.priceFrom}` : ''}
+                      </div>
+                    )}
                   </div>
                   {/* Languages */}
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     {pt.languages.map(l => (
                       <span key={l} style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: 'var(--accent-muted)', color: 'var(--accent-text)' }}>{l}</span>
                     ))}
@@ -127,7 +117,7 @@ export function PTFinder() {
 
                 {/* Bio */}
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 16 }}>
-                  {pt.shortBio}
+                  {pt.shortBio ?? ''}
                 </p>
 
                 {/* Specializations */}

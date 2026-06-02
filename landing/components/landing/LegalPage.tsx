@@ -11,12 +11,14 @@ export function LegalPage({
   subtitle,
   lastUpdated,
   sections,
+  lang = 'de',
 }: {
   eyebrow:     string;
   title:       string;
   subtitle?:   string;
   lastUpdated: string;
   sections:    Section[];
+  lang?:       string;
 }) {
   return (
     <>
@@ -31,7 +33,7 @@ export function LegalPage({
             </h1>
             {subtitle && <p style={{ fontSize: 16, color: 'var(--text-muted)' }}>{subtitle}</p>}
             <p style={{ fontSize: 13, color: 'var(--text-subtle)', marginTop: 12 }}>
-              Stand: {lastUpdated}
+              {lang === 'de' ? 'Stand' : 'Last updated'}: {lastUpdated}
             </p>
           </div>
         </div>
@@ -41,7 +43,7 @@ export function LegalPage({
           {/* ToC */}
           <nav style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px', marginBottom: 48 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
-              Inhalt
+              {lang === 'de' ? 'Inhalt' : 'Contents'}
             </div>
             <ol style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 20 }}>
               {sections.map((s, i) => (

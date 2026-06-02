@@ -45,14 +45,22 @@ export function CTASection() {
               {s.ctaSub}
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {/* Clients register freely */}
               <a href={REGISTER_URL} className="btn btn-primary" style={{ fontSize: 16, padding: '14px 32px' }}>
                 {s.ctaPrimary}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </a>
-              <a href="/features" className="btn btn-secondary" style={{ fontSize: 16, padding: '14px 32px' }}>
-                {s.ctaSecondary}
+              {/* PTs contact to get access */}
+              <a href="/contact" className="btn btn-secondary" style={{ fontSize: 16, padding: '14px 32px' }}>
+                {lang === 'de' ? 'PT-Zugang anfragen' : 'Request PT access'}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               </a>
             </div>
+            <p style={{ marginTop: 16, fontSize: 13, color: 'var(--text-subtle)' }}>
+              {lang === 'de'
+                ? '👤 Clients registrieren sich direkt · 🏋️ Personal Trainer werden nach Kontaktaufnahme freigeschaltet'
+                : '👤 Clients register directly · 🏋️ Personal Trainers get access after contacting us'}
+            </p>
           </div>
         </div>
       </section>

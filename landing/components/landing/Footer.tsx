@@ -28,10 +28,9 @@ export function Footer() {
   ];
 
   const legal = [
-    { label: s.footerImprint, href: '/impressum' },
-    { label: s.footerPrivacy, href: 'https://datenschutz.yannicksalm.ch/#ptone' },
-    { label: lang === 'de' ? 'AGB' : 'Terms',   href: '/terms' },
-    { label: lang === 'de' ? 'Privacy' : 'Privacy', href: '/privacy' },
+    { label: lang === 'de' ? 'Impressum'         : 'Legal Notice', href: '/impressum' },
+    { label: lang === 'de' ? 'AGB'               : 'Terms',        href: '/terms' },
+    { label: lang === 'de' ? 'Datenschutz'       : 'Privacy',      href: 'https://datenschutz.yannicksalm.ch/#ptone', external: true },
   ];
 
   return (
@@ -67,7 +66,9 @@ export function Footer() {
           </span>
           <div style={{ display: 'flex', gap: 16 }}>
             {legal.map(l => (
-              <a key={l.href} href={l.href} style={{ fontSize: 13, color: 'var(--text-subtle)', transition: 'color 0.15s' }}
+              <a key={l.href} href={l.href}
+                {...('external' in l && l.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                style={{ fontSize: 13, color: 'var(--text-subtle)', transition: 'color 0.15s' }}
                 onMouseOver={e => (e.currentTarget.style.color = 'var(--text-muted)')}
                 onMouseOut={e => (e.currentTarget.style.color = 'var(--text-subtle)')}
               >

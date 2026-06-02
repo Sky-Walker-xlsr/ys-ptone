@@ -37,7 +37,7 @@ function GoogleIcon() {
 }
 
 export default function LoginPage() {
-  const { t } = useTranslation();
+  const { t, lang, setLang } = useTranslation();
   const s = t(auth);
 
   const [email, setEmail]       = useState('');
@@ -106,13 +106,28 @@ export default function LoginPage() {
     }}>
       <div style={{ width: '100%', maxWidth: 420 }}>
 
-        {/* Logo + back */}
+        {/* Logo + back + language toggle */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 40 }}>
           <a href="/" style={{ display: 'flex', alignItems: 'center' }}><PTOneLogo /></a>
-          <a href="/" style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
-            {s.backToHome}
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['de', 'en'] as const).map(l => (
+                <button key={l} onClick={() => setLang(l)} style={{
+                  padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                  background: lang === l ? 'var(--accent)' : 'var(--bg-card)',
+                  color: lang === l ? '#fff' : 'var(--text-muted)',
+                  border: `1px solid ${lang === l ? 'var(--accent)' : 'var(--border-strong)'}`,
+                  cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                }}>
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <a href="/" style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
+              {s.backToHome}
+            </a>
+          </div>
         </div>
 
         {/* Card */}

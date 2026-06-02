@@ -30,7 +30,7 @@ function GoogleIcon() {
 type Step = 'form' | 'success';
 
 export default function RegisterPage() {
-  const { t } = useTranslation();
+  const { t, lang, setLang } = useTranslation();
   const s = t(auth);
 
   const [step, setStep]           = useState<Step>('form');
@@ -153,13 +153,29 @@ export default function RegisterPage() {
     }}>
       <div style={{ width: '100%', maxWidth: 420 }}>
 
-        {/* Logo + back */}
+        {/* Logo + back + language toggle */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 40 }}>
           <a href="/" style={{ display: 'flex', alignItems: 'center' }}><PTOneLogo /></a>
-          <a href="/" style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
-            {s.backToHome}
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* Language toggle */}
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['de', 'en'] as const).map(l => (
+                <button key={l} onClick={() => setLang(l)} style={{
+                  padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                  background: lang === l ? 'var(--accent)' : 'var(--bg-card)',
+                  color: lang === l ? '#fff' : 'var(--text-muted)',
+                  border: `1px solid ${lang === l ? 'var(--accent)' : 'var(--border-strong)'}`,
+                  cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                }}>
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <a href="/" style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
+              {s.backToHome}
+            </a>
+          </div>
         </div>
 
         {/* Card */}
@@ -169,7 +185,21 @@ export default function RegisterPage() {
           boxShadow: '0 8px 40px rgba(0,0,0,0.3)',
         }}>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>{s.registerTitle}</h1>
-          <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 28 }}>{s.registerSub}</p>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>{s.registerSub}</p>
+
+          {/* PT access notice */}
+          <div style={{ background: 'rgba(124,106,255,0.08)', border: '1px solid rgba(124,106,255,0.2)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>🏋️</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3 }}>Personal Trainer?</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                {lang === 'de'
+                  ? <> PT-Zugang ist auf Einladung. <a href="/contact" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>Kontaktiere uns</a> für mehr Informationen.</>
+                  : <> PT access is by invitation. <a href="/contact" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>Contact us</a> for more information.</>
+                }
+              </div>
+            </div>
+          </div>
 
           {/* Google OAuth */}
           <button
@@ -266,7 +296,7 @@ export default function RegisterPage() {
               {s.termsNote}{' '}
               <a href="/terms" style={{ color: 'var(--accent)', textDecoration: 'none' }}>{s.termsLink}</a>
               {' '}{s.termsAnd}{' '}
-              <a href="/privacy" style={{ color: 'var(--accent)', textDecoration: 'none' }}>{s.privacyLink}</a>
+              <a href="https://datenschutz.yannicksalm.ch/#ptone" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none' }}>{s.privacyLink}</a>
               {s.termsEnd}
             </p>
           </form>

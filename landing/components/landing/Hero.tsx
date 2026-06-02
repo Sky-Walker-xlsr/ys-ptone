@@ -7,7 +7,7 @@ import { AppMockup } from './AppMockup';
 const REGISTER_URL = '/register';
 
 export function Hero() {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const s = t(home);
 
   return (
@@ -84,6 +84,7 @@ export function Hero() {
 
             {/* CTAs */}
             <div style={{ display: 'flex', gap: 15, flexWrap: 'wrap' }}>
+              {/* Client registration — open to everyone */}
               <a
                 href={REGISTER_URL}
                 style={{
@@ -100,8 +101,9 @@ export function Hero() {
                   <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
               </a>
+              {/* PT access — by invitation, go to contact */}
               <a
-                href="/pt"
+                href="/contact"
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 10,
                   padding: '18px 35px', borderRadius: 10,
@@ -115,6 +117,13 @@ export function Hero() {
                 {s.heroCTASecondary}
               </a>
             </div>
+
+            {/* PT access note */}
+            <p style={{ marginTop: 16, fontSize: 13, color: 'var(--text-subtle)' }}>
+              {lang === 'de'
+                ? '👤 Als Client einfach registrieren · 🏋️ PT-Zugang auf Anfrage'
+                : '👤 Clients can register freely · 🏋️ PT access by invitation'}
+            </p>
 
             {/* Trust signals */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 25, marginTop: 40, flexWrap: 'wrap' }}>
