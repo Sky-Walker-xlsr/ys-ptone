@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AddExerciseModal, { type ExerciseOption } from '@/components/exercise/AddExerciseModal'
 import ExerciseVideos from '@/components/ExerciseVideos'
+import { getExerciseFields, getFieldHeader, getFieldInputMode, isBodyweightExercise, getBodyweightModifier, type ExerciseField } from '@/lib/exerciseType'
+import { getExercisesByIds } from '@/lib/exercisedb'
 
 // Thin wrapper — only renders if the exercise has PT videos (checked inside ExerciseVideos)
 function ExerciseVideosBanner({ exerciseId }: { exerciseId: string }) {
@@ -18,7 +20,9 @@ interface WorkoutExercise {
   exercise_id: string
   position: number
   superset_group: string | null
-  exercises?: { id: string; name: string | null; image_url: string | null; source: string }
+  exercises?: { id: string; name: string | null; image_url: string | null; source: string; external_id?: string | null }
+  exercise_type_name?: string | null
+  exercise_type_fields?: string[] | null
 }
 
 interface WorkoutSet {
@@ -27,10 +31,12 @@ interface WorkoutSet {
   set_number: number
   weight_kg: number | null
   reps: number | null
+  duration_seconds: number | null
+  distance_km: number | null
   is_completed: boolean
 }
 
-type PrevSet = { weight_kg: number | null; reps: number | null; set_number: number }
+type PrevSet = { weight_kg: number | null; reps: number | null; duration_seconds: number | null; distance_km: number | null; set_number: number }
 
 type RenderGroup =
   | { type: 'single'; ex: WorkoutExercise; index: number }
@@ -110,9 +116,10 @@ function NoteInline({ exerciseId, userId, initialNote, supabase }: {
 }
 
 // ─── Swipeable set row ────────────────────────────────────────────────────────
-function SwipeableSetRow({ s, i, isCompleted, isHighlighted, prevValue, onComplete, onUpdate, onDelete }: {
+function SwipeableSetRow({ s, i, isCompleted, isHighlighted, prevValue, fields, onComplete, onUpdate, onDelete }: {
   s: WorkoutSet; i: number; isCompleted: boolean; isHighlighted: boolean
-  prevValue: string; onComplete: () => void; onUpdate: (f: string, v: string) => void; onDelete: () => void
+  prevValue: string; fields: ExerciseField[]
+  onComplete: () => void; onUpdate: (f: string, v: string) => void; onDelete: () => void
 }) {
   const rowRef = useRef<HTMLDivElement>(null)
   const bgRef  = useRef<HTMLDivElement>(null)
@@ -158,13 +165,15 @@ function SwipeableSetRow({ s, i, isCompleted, isHighlighted, prevValue, onComple
       <div ref={bgRef} style={{ position: 'absolute', inset: 0, opacity: 0, background: 'rgba(240,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 20, pointerEvents: 'none' }}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f04444" strokeWidth="1.8" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
       </div>
-      <div ref={rowRef} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 1fr 36px', padding: '10px 14px', background: rowBg, borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'center', position: 'relative', zIndex: 1, willChange: 'transform', outline: isHighlighted ? '1px solid rgba(124,106,255,0.5)' : 'none' }}>
+      <div ref={rowRef} style={{ display: 'grid', gridTemplateColumns: `32px 1fr ${fields.map(()=>'1fr').join(' ')} 36px`, padding: '10px 14px', background: rowBg, borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'center', position: 'relative', zIndex: 1, willChange: 'transform', outline: isHighlighted ? '1px solid rgba(124,106,255,0.5)' : 'none' }}>
         <span style={{ textAlign: 'center', fontWeight: 600, fontSize: 12, color: isCompleted ? 'var(--success)' : 'var(--text-muted)' }}>{s.set_number}</span>
         <span style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, opacity: prevValue === '—' ? 0.3 : 0.7 }}>{prevValue}</span>
-        <input type="number" inputMode="decimal" placeholder="0" value={s.weight_kg ?? ''} onFocus={e => e.target.select()} onChange={e => onUpdate('weight_kg', e.target.value)} disabled={isCompleted}
-          style={{ textAlign: 'center', width: '100%', fontSize: 16, fontWeight: 500, opacity: isCompleted ? 0.5 : 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit' }} />
-        <input type="number" inputMode="numeric" placeholder="0" value={s.reps ?? ''} onFocus={e => e.target.select()} onChange={e => onUpdate('reps', e.target.value)} disabled={isCompleted}
-          style={{ textAlign: 'center', width: '100%', fontSize: 16, fontWeight: 500, opacity: isCompleted ? 0.5 : 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit' }} />
+        {fields.map(field => (
+          <input key={field} type="number" inputMode={getFieldInputMode(field)} placeholder="0"
+            value={(s[field as keyof WorkoutSet] as number | null) ?? ''}
+            onFocus={e => e.target.select()} onChange={e => onUpdate(field, e.target.value)} disabled={isCompleted}
+            style={{ textAlign: 'center', width: '100%', fontSize: 16, fontWeight: 500, opacity: isCompleted ? 0.5 : 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit' }} />
+        ))}
         <button onClick={onComplete}
           style={{ width: 28, height: 28, borderRadius: '50%', border: isCompleted ? '2px solid var(--success)' : '2px solid rgba(255,255,255,0.2)', background: isCompleted ? 'rgba(62,207,142,0.3)' : 'transparent', color: isCompleted ? 'var(--success)' : 'transparent', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
           {isCompleted ? '✓' : ''}
@@ -212,6 +221,7 @@ export default function WorkoutClient() {
   const supabase     = useRef(createClient()).current
 
   const [loading,          setLoading]          = useState(true)
+  const [bodyWeightKg,     setBodyWeightKg]     = useState<number | null>(null)
   const [userId,           setUserId]           = useState('')
   const [title,            setTitle]            = useState('')
   const [editingTitle,     setEditingTitle]     = useState(false)
@@ -270,7 +280,7 @@ export default function WorkoutClient() {
 
       const [exRes, setRes] = await Promise.all([
         supabase.from('workout_exercises')
-          .select('*, exercises(id, name, image_url, source)')
+          .select('*, exercises(id, name, image_url, source, external_id)')
           .eq('workout_session_id', sessionId)
           .order('position'),
         supabase.from('sets')
@@ -294,7 +304,7 @@ export default function WorkoutClient() {
       if (exerciseIds.length > 0) {
         const { data: prevData } = await supabase
           .from('workout_exercises')
-          .select(`exercise_id, sets(weight_kg, reps, set_number), workout_sessions!inner(finished_at, status, user_id)`)
+          .select(`exercise_id, sets(weight_kg, reps, duration_seconds, distance_km, set_number), workout_sessions!inner(finished_at, status, user_id)`)
           .eq('workout_sessions.user_id', user.id)
           .eq('workout_sessions.status', 'completed')
           .neq('workout_session_id', sessionId)
@@ -321,6 +331,37 @@ export default function WorkoutClient() {
         notesData?.forEach((n: any) => { notes[n.exercise_id] = n.note })
         setInitialNotes(notes)
       }
+
+      // Enrich exercises with ExerciseDB type fields
+      const externalIds = exs.map(e => e.exercises?.external_id).filter(Boolean) as string[]
+      if (externalIds.length > 0) {
+        getExercisesByIds(externalIds).then(edbRows => {
+          const byId = Object.fromEntries(edbRows.map(r => [r.id, r]))
+          setExercises(prev => prev.map(ex => {
+            const edb = byId[ex.exercises?.external_id ?? '']
+            if (!edb) return ex
+            const rawFields = edb.exercise_type_fields
+            const parsedFields = Array.isArray(rawFields) ? rawFields as string[]
+              : typeof rawFields === 'string' ? (() => { try { const p = JSON.parse(rawFields); return Array.isArray(p) ? p : null } catch { return null } })()
+              : null
+            return {
+              ...ex,
+              exercise_type_name:   edb.exercise_type_name,
+              exercise_type_fields: parsedFields,
+              // Provide EDB image as fallback when app DB has none
+              exercises: ex.exercises
+                ? { ...ex.exercises, image_url: ex.exercises.image_url || edb.image_url || null }
+                : ex.exercises,
+            }
+          }))
+        })
+      }
+
+      // Fetch body weight
+      supabase.from('measurements').select('weight_kg')
+        .eq('user_id', user.id).not('weight_kg', 'is', null)
+        .order('recorded_at', { ascending: false }).limit(1).maybeSingle()
+        .then(({ data }) => { if (data?.weight_kg != null) setBodyWeightKg(data.weight_kg) })
 
       setLoading(false)
     }
@@ -382,15 +423,24 @@ export default function WorkoutClient() {
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
 
-  const totalVolume = sets.reduce((a, s) => s.weight_kg && s.reps ? a + s.weight_kg * s.reps : a, 0)
+  const totalVolume = sets.reduce((a, s) => {
+    if (!s.weight_kg || !s.reps) return a
+    const ex = exercises.find(e => e.id === s.workout_exercise_id)
+    if (isBodyweightExercise({}, { exercise_type_fields: ex?.exercise_type_fields })) return a
+    return a + s.weight_kg * s.reps
+  }, 0)
   const totalSets   = sets.length
 
   async function addSet(weid: string) {
     const es = sets.filter(s => s.workout_exercise_id === weid).sort((a, b) => a.set_number - b.set_number)
     const ls = es[es.length - 1]
+    const ex = exercises.find(e => e.id === weid)
+    const fields = getExerciseFields({}, { exercise_type_fields: ex?.exercise_type_fields, equipments: ex?.exercises ? [] : [] })
+    const fieldValues: Partial<Record<ExerciseField, number | null>> = {}
+    for (const f of fields) fieldValues[f] = (ls?.[f as keyof WorkoutSet] as number | null) ?? null
     const { data: ns } = await supabase.from('sets').insert({
       workout_session_id: sessionId, workout_exercise_id: weid,
-      set_number: es.length + 1, weight_kg: ls?.weight_kg ?? null, reps: ls?.reps ?? null,
+      set_number: es.length + 1, ...fieldValues,
     }).select().single()
     if (ns) setSets(p => [...p, ns as WorkoutSet])
   }
@@ -448,9 +498,21 @@ export default function WorkoutClient() {
     if (!exerciseId) return
     const { data: we } = await supabase.from('workout_exercises').insert({
       workout_session_id: sessionId, exercise_id: exerciseId, position: exercises.length,
-    }).select('*, exercises(id, name, image_url, source)').single()
+    }).select('*, exercises(id, name, image_url, source, external_id)').single()
     if (we) {
-      setExercises(p => [...p, we as WorkoutExercise])
+      const rawFields = option.exercise_type_fields
+      const parsedFields = Array.isArray(rawFields) ? rawFields as string[]
+        : typeof rawFields === 'string' ? (() => { try { const p = JSON.parse(rawFields); return Array.isArray(p) ? p : null } catch { return null } })()
+        : null
+      const weTyped = we as WorkoutExercise
+      setExercises(p => [...p, {
+        ...weTyped,
+        exercise_type_name:   option.exercise_type_name ?? null,
+        exercise_type_fields: parsedFields,
+        exercises: weTyped.exercises
+          ? { ...weTyped.exercises, image_url: weTyped.exercises.image_url || option.imageUrl || null }
+          : weTyped.exercises,
+      }])
       setShowAddExercise(false)
       setReplacingExerciseId(null)
     }
@@ -552,9 +614,10 @@ export default function WorkoutClient() {
               onTouchStart={e => !supersetPickingFor && handleNameTouchStart(e, ex.id, index)}
               onTouchMove={handleNameTouchMove} onTouchEnd={handleNameTouchEnd}
               onContextMenu={e => e.preventDefault()}
-              style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', color: 'var(--accent)', fontWeight: 600, fontSize: 15, cursor: isPairingTarget ? 'pointer' : dragState ? 'grabbing' : 'grab', WebkitUserSelect: 'none', userSelect: 'none', opacity: supersetPickingFor && !isPairingTarget && supersetPickingFor !== ex.id ? 0.35 : 1, transition: 'opacity 0.2s', textTransform: 'capitalize' }}>
+              style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', color: 'var(--accent)', fontWeight: 600, fontSize: 15, cursor: isPairingTarget ? 'pointer' : dragState ? 'grabbing' : 'grab', WebkitUserSelect: 'none', userSelect: 'none', opacity: supersetPickingFor && !isPairingTarget && supersetPickingFor !== ex.id ? 0.35 : 1, transition: 'opacity 0.2s', textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: 6 }}>
               {name}
-              {isPairingTarget && <span style={{ fontSize: 11, marginLeft: 6, fontWeight: 400, color: 'var(--text-muted)' }}>tap to pair</span>}
+              {isPairingTarget && <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>tap to pair</span>}
+              {(()=>{ const m=getBodyweightModifier({exercise_type_name:ex.exercise_type_name,name:ex.exercises?.name}); if(!m)return null; const isW=m==='weighted'; return(<span style={{fontSize:'10px',fontWeight:700,color:isW?'var(--success)':'var(--danger)',background:isW?'rgba(62,207,142,0.15)':'rgba(240,68,68,0.15)',border:`1px solid ${isW?'rgba(62,207,142,0.35)':'rgba(240,68,68,0.35)'}`,borderRadius:4,padding:'1px 5px',flexShrink:0}}>{isW?'+W':'-W'}</span>)})()}
             </button>
           </div>
           <div style={{ position: 'relative' }}>
@@ -575,22 +638,39 @@ export default function WorkoutClient() {
         </div>
 
         {/* Sets */}
+        {(()=>{
+          const exFields = getExerciseFields({}, { exercise_type_fields: ex.exercise_type_fields })
+          const isBW     = isBodyweightExercise({}, { exercise_type_fields: ex.exercise_type_fields })
+          const modifier = getBodyweightModifier({ exercise_type_name: ex.exercise_type_name })
+          const colHeader = (f: ExerciseField) => {
+            if (f === 'weight_kg' && modifier === 'weighted') return '+kg'
+            if (f === 'weight_kg' && modifier === 'assisted') return '-kg'
+            return getFieldHeader(f)
+          }
+          return (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 8 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 1fr 36px', padding: '8px 14px', background: 'var(--bg-tertiary)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            {['Set', 'Prev', 'kg', 'Reps', ''].map(h => (
-              <span key={h} style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', fontWeight: 500 }}>{h}</span>
+          {(isBW || modifier) && (
+            <div style={{ padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-tertiary)' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Body weight:</span>
+              {bodyWeightKg != null
+                ? <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{bodyWeightKg} kg</span>
+                : <a href="/settings" style={{ fontSize: 12, color: 'var(--text-muted)', opacity: 0.7 }}>Add in Settings ›</a>
+              }
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: `32px 1fr ${exFields.map(()=>'1fr').join(' ')} 36px`, padding: '8px 14px', background: 'var(--bg-tertiary)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            {['Set', 'Prev', ...exFields.map(colHeader), ''].map((h, i) => (
+              <span key={i} style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', fontWeight: 500 }}>{h}</span>
             ))}
           </div>
           {exSets.map((s, si) => (
-            <SwipeableSetRow key={s.id} s={s} i={si}
+            <SwipeableSetRow key={s.id} s={s} i={si} fields={exFields}
               isCompleted={completedSets.has(s.id)} isHighlighted={highlightSetId === s.id}
               prevValue={(() => {
                 const prev = previousSets[ex.exercise_id]?.[si]
                 if (!prev) return '—'
-                if (prev.weight_kg != null && prev.reps != null) return `${prev.weight_kg}×${prev.reps}`
-                if (prev.weight_kg != null) return `${prev.weight_kg}kg`
-                if (prev.reps != null) return `${prev.reps}`
-                return '—'
+                const parts = exFields.map(f => { const v = (prev as any)[f]; return v != null ? (f==='weight_kg'?`${v}kg`:f==='distance_km'?`${v}km`:f==='duration_seconds'?`${v}s`:String(v)):null }).filter(Boolean)
+                return parts.length ? parts.join('×') : '—'
               })()}
               onComplete={() => handleSetComplete(s.id, ex.id)}
               onUpdate={(f, v) => updateSet(s.id, f, v)}
@@ -602,6 +682,7 @@ export default function WorkoutClient() {
             + Add Set
           </button>
         </div>
+        )})()}
       </div>
     )
   }

@@ -5,14 +5,16 @@ import { createClient } from '@/lib/supabase/client'
 import CreateExerciseModal from './CreateExerciseModal'
 
 export interface EDBExercise {
-  exerciseId:    string
-  name:          string
-  imageUrl:      string | null
-  imageUrl2?:    string | null
-  targetMuscles: string[]
-  bodyParts:     string[]
-  equipments:    string[]
-  source?:       string
+  exerciseId:           string
+  name:                 string
+  imageUrl:             string | null
+  imageUrl2?:           string | null
+  targetMuscles:        string[]
+  bodyParts:            string[]
+  equipments:           string[]
+  exercise_type_name?:  string | null
+  exercise_type_fields?: string[] | null
+  source?:              string
 }
 
 interface Props {

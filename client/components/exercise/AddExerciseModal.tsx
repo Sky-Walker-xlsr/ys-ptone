@@ -11,6 +11,8 @@ export interface ExerciseOption {
   imageUrl2?: string
   targetMuscles: string[]
   equipments: string[]
+  exercise_type_name?: string | null
+  exercise_type_fields?: string[] | null
   source?: string
 }
 

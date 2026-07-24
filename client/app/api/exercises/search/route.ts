@@ -8,13 +8,15 @@ export async function GET(request: NextRequest) {
   try {
     const data = await searchExercises(q)
     const formatted = data.map(ex => ({
-      exerciseId:    ex.id,
-      name:          ex.name,
-      imageUrl:      ex.image_url,
-      imageUrl2:     ex.image_url_2,
-      targetMuscles: ex.primary_muscles,
-      equipments:    ex.equipment ? [ex.equipment] : [],
-      source:        'exercisedb',
+      exerciseId:           ex.id,
+      name:                 ex.name,
+      imageUrl:             ex.image_url,
+      imageUrl2:            ex.image_url_2,
+      targetMuscles:        ex.primary_muscles,
+      equipments:           ex.equipment ? [ex.equipment] : [],
+      exercise_type_name:   ex.exercise_type_name ?? null,
+      exercise_type_fields: ex.exercise_type_fields ?? null,
+      source:               'exercisedb',
     }))
     return NextResponse.json(formatted)
   } catch (err) {

@@ -17,7 +17,9 @@ export async function GET(request: NextRequest) {
       imageUrl2:     ex.image_url_2,
       targetMuscles: ex.primary_muscles,
       bodyParts:     ex.primary_muscles,
-      equipments:    ex.equipment ? [ex.equipment] : [],
+      equipments:           ex.equipment ? [ex.equipment] : [],
+      exercise_type_name:   ex.exercise_type_name ?? null,
+      exercise_type_fields: ex.exercise_type_fields ?? null,
     }))
     return NextResponse.json({
       data: formatted,

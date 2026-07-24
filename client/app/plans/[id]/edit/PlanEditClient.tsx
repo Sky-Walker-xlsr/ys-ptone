@@ -4,13 +4,17 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import AddExerciseModal, { type ExerciseOption } from '@/components/exercise/AddExerciseModal'
+import { getExerciseFields, getFieldHeader, getFieldInputMode, getBodyweightModifier, type ExerciseField } from '@/lib/exerciseType'
+import { getExercisesByIds } from '@/lib/exercisedb'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface PlanSet {
   id?: string
   set_number: number
-  weight_kg: number | null
-  reps: number | null
+  weight_kg?: number | null
+  reps?: number | null
+  duration_seconds?: number | null
+  distance_km?: number | null
 }
 
 interface PlanExercise {
@@ -20,8 +24,10 @@ interface PlanExercise {
   position: number
   superset_group: string | null
   default_sets: number | null
-  exercises?: { id: string; name: string | null; image_url: string | null; source: string }
+  exercises?: { id: string; name: string | null; image_url: string | null; source: string; external_id?: string | null }
   plan_sets?: PlanSet[]
+  exercise_type_name?: string | null
+  exercise_type_fields?: string[] | null
 }
 
 type RenderGroup =
@@ -113,7 +119,7 @@ export default function PlanEditClient({ planId }: { planId: string }) {
       const [planRes, exRes] = await Promise.all([
         supabase.from('plans').select('id, title, description').eq('id', planId).single(),
         supabase.from('plan_exercises')
-          .select('*, exercises(id, name, image_url, source), plan_sets(id, set_number, weight_kg, reps)')
+          .select('*, exercises(id, name, image_url, source, external_id), plan_sets(id, set_number, weight_kg, reps, duration_seconds, distance_km)')
           .eq('plan_id', planId)
           .order('position'),
       ])
@@ -121,12 +127,36 @@ export default function PlanEditClient({ planId }: { planId: string }) {
       if (!planRes.data) { router.replace('/dashboard'); return }
       setTitle(planRes.data.title)
       setDescription(planRes.data.description ?? '')
-      setExercises((exRes.data ?? []).map(ex => ({
+
+      const mapped = (exRes.data ?? []).map(ex => ({
         ...ex,
         plan_sets: ex.plan_sets?.length
           ? [...ex.plan_sets].sort((a, b) => a.set_number - b.set_number)
           : [{ set_number: 1, weight_kg: null, reps: null }],
-      })))
+      }))
+
+      // Enrich with ExerciseDB type fields
+      const extIds = mapped.map((ex: any) => ex.exercises?.external_id).filter(Boolean) as string[]
+      if (extIds.length > 0) {
+        const edbRows = await getExercisesByIds(extIds)
+        const byId = Object.fromEntries(edbRows.map(r => [r.id, r]))
+        setExercises(mapped.map((ex: any) => {
+          const edb = byId[ex.exercises?.external_id ?? '']
+          if (!edb) return ex
+          const rawF = edb.exercise_type_fields
+          const parsedF = Array.isArray(rawF) ? rawF as string[]
+            : typeof rawF === 'string' ? (() => { try { const p = JSON.parse(rawF); return Array.isArray(p) ? p : null } catch { return null } })()
+            : null
+          return {
+            ...ex,
+            exercise_type_name:   edb.exercise_type_name,
+            exercise_type_fields: parsedF,
+            exercises: { ...ex.exercises, image_url: ex.exercises?.image_url || edb.image_url || null },
+          }
+        }))
+      } else {
+        setExercises(mapped)
+      }
       setLoading(false)
     }
     load()
@@ -194,7 +224,7 @@ export default function PlanEditClient({ planId }: { planId: string }) {
   const insertionLineAt = getInsertionLineIndex()
 
   // ─── Set helpers ───────────────────────────────────────────────────────────
-  function updateSet(exId: string, si: number, field: 'weight_kg' | 'reps', value: string) {
+  function updateSet(exId: string, si: number, field: string, value: string) {
     const nv = value === '' ? null : parseFloat(value)
     setExercises(p => p.map(ex => {
       if (ex.id !== exId) return ex
@@ -208,7 +238,7 @@ export default function PlanEditClient({ planId }: { planId: string }) {
       if (ex.id !== exId) return ex
       const s = ex.plan_sets ?? []
       const last = s[s.length - 1]
-      return { ...ex, plan_sets: [...s, { set_number: s.length + 1, weight_kg: last?.weight_kg ?? null, reps: last?.reps ?? null }] }
+      const fields = getExerciseFields({}, { exercise_type_fields: ex.exercise_type_fields }); const vals: Partial<PlanSet> = {}; for (const f of fields) (vals as any)[f] = (last as any)?.[f] ?? null; return { ...ex, plan_sets: [...s, { set_number: s.length + 1, ...vals }] }
     }))
   }
   function removeSet(exId: string, si: number) {
@@ -243,13 +273,21 @@ export default function PlanEditClient({ planId }: { planId: string }) {
       .select('*, exercises(id, name, image_url, source)')
       .single()
     if (pe) {
+      const rawFields = opt.exercise_type_fields
+      const parsedFields = Array.isArray(rawFields) ? rawFields as string[]
+        : typeof rawFields === 'string' ? (() => { try { const p = JSON.parse(rawFields); return Array.isArray(p) ? p : null } catch { return null } })()
+        : null
+      const blankSet = (n: number): PlanSet => {
+        const s: PlanSet = { set_number: n }
+        for (const f of (parsedFields ?? ['weight_kg', 'reps'])) (s as any)[f] = null
+        return s
+      }
       setExercises(p => [...p, {
         ...pe,
-        plan_sets: [
-          { set_number: 1, weight_kg: null, reps: null },
-          { set_number: 2, weight_kg: null, reps: null },
-          { set_number: 3, weight_kg: null, reps: null },
-        ],
+        exercise_type_name:   opt.exercise_type_name ?? null,
+        exercise_type_fields: parsedFields,
+        exercises: { ...(pe as any).exercises, image_url: (pe as any).exercises?.image_url || opt.imageUrl || null },
+        plan_sets: [blankSet(1), blankSet(2), blankSet(3)],
       }])
       setShowAddExercise(false)
     }
@@ -301,12 +339,12 @@ export default function PlanEditClient({ planId }: { planId: string }) {
       const sets = ex.plan_sets ?? []
       await supabase.from('plan_sets').delete().eq('plan_exercise_id', ex.id)
       if (sets.length > 0) {
-        await supabase.from('plan_sets').insert(sets.map(s => ({
-          plan_exercise_id: ex.id,
-          set_number: s.set_number,
-          weight_kg: s.weight_kg,
-          reps: s.reps,
-        })))
+        const exFields = getExerciseFields({}, { exercise_type_fields: ex.exercise_type_fields })
+        await supabase.from('plan_sets').insert(sets.map(s => {
+          const row: Record<string,unknown> = { plan_exercise_id: ex.id, set_number: s.set_number }
+          for (const f of exFields) row[f] = (s as any)[f] ?? null
+          return row
+        }))
       }
     }))
     setSaving(false)
@@ -362,11 +400,12 @@ export default function PlanEditClient({ planId }: { planId: string }) {
                 cursor: isPairingTarget ? 'pointer' : dragState ? 'grabbing' : 'grab',
                 WebkitUserSelect: 'none', userSelect: 'none',
                 opacity: supersetPickingFor && !isPairingTarget && supersetPickingFor !== ex.id ? 0.35 : 1,
-                transition: 'opacity 0.2s',
+                transition: 'opacity 0.2s', display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
               {name}
-              {isPairingTarget && <span style={{ fontSize: 11, marginLeft: 6, fontWeight: 400, color: 'var(--text-muted)' }}>tap to pair</span>}
+              {isPairingTarget && <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>tap to pair</span>}
+              {(()=>{const m=getBodyweightModifier({exercise_type_name:ex.exercise_type_name,name:ex.exercises?.name});if(!m)return null;const isW=m==='weighted';return(<span style={{fontSize:'10px',fontWeight:700,color:isW?'var(--success)':'var(--danger)',background:isW?'rgba(62,207,142,0.15)':'rgba(240,68,68,0.15)',border:`1px solid ${isW?'rgba(62,207,142,0.35)':'rgba(240,68,68,0.35)'}`,borderRadius:4,padding:'1px 5px',flexShrink:0}}>{isW?'+W':'-W'}</span>)})()}
             </button>
           </div>
           <div style={{ position: 'relative' }}>
@@ -394,29 +433,29 @@ export default function PlanEditClient({ planId }: { planId: string }) {
         </div>
 
         {/* Sets table */}
+        {(()=>{
+          const exFields = getExerciseFields({}, { exercise_type_fields: ex.exercise_type_fields })
+          const modifier = getBodyweightModifier({ exercise_type_name: ex.exercise_type_name })
+          const colH = (f: ExerciseField) => f==='weight_kg'&&modifier==='weighted'?'+kg':f==='weight_kg'&&modifier==='assisted'?'-kg':getFieldHeader(f)
+          return (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 32px', padding: '8px 14px', background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)' }}>
-            {['Set', 'kg', 'Reps', ''].map(h => (
-              <span key={h} style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', fontWeight: 500 }}>{h}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: `32px ${exFields.map(()=>'1fr').join(' ')} 32px`, padding: '8px 14px', background: 'var(--bg-tertiary)', borderBottom: '1px solid var(--border)' }}>
+            {['Set', ...exFields.map(colH), ''].map((h, i) => (
+              <span key={i} style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', fontWeight: 500 }}>{h}</span>
             ))}
           </div>
           {(ex.plan_sets ?? []).map((s, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 32px', padding: '10px 14px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: `32px ${exFields.map(()=>'1fr').join(' ')} 32px`, padding: '10px 14px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
               <span style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>{s.set_number}</span>
-              <input
-                type="number" inputMode="decimal" placeholder="0"
-                value={s.weight_kg ?? ''}
-                onFocus={e => e.target.select()}
-                onChange={e => updateSet(ex.id, i, 'weight_kg', e.target.value)}
-                style={{ textAlign: 'center', fontSize: 15, fontWeight: 500, background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit', width: '100%' }}
-              />
-              <input
-                type="number" inputMode="numeric" placeholder="0"
-                value={s.reps ?? ''}
-                onFocus={e => e.target.select()}
-                onChange={e => updateSet(ex.id, i, 'reps', e.target.value)}
-                style={{ textAlign: 'center', fontSize: 15, fontWeight: 500, background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit', width: '100%' }}
-              />
+              {exFields.map(f => (
+                <input key={f}
+                  type="number" inputMode={getFieldInputMode(f)} placeholder="0"
+                  value={(s as any)[f] ?? ''}
+                  onFocus={e => e.target.select()}
+                  onChange={e => updateSet(ex.id, i, f, e.target.value)}
+                  style={{ textAlign: 'center', fontSize: 15, fontWeight: 500, background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit', width: '100%' }}
+                />
+              ))}
               <button
                 onClick={() => removeSet(ex.id, i)}
                 style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: 18, padding: 0, cursor: 'pointer', textAlign: 'center' }}
@@ -428,6 +467,7 @@ export default function PlanEditClient({ planId }: { planId: string }) {
             style={{ width: '100%', padding: '9px', background: 'rgba(124,106,255,0.08)', border: 'none', color: 'var(--accent)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
           >+ Add Set</button>
         </div>
+        )})()}
       </div>
     )
   }

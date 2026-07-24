@@ -18,6 +18,8 @@ export interface Exercise {
   level: string | null
   force: string | null
   mechanic: string | null
+  exercise_type_name:   string | null
+  exercise_type_fields: string[] | null
 }
 
 export async function searchExercises(query: string): Promise<Exercise[]> {
@@ -27,6 +29,15 @@ export async function searchExercises(query: string): Promise<Exercise[]> {
     .ilike('name', `%${query}%`)
     .order('name')
     .limit(50)
+  return data ?? []
+}
+
+export async function getExercisesByIds(ids: string[]): Promise<Pick<Exercise, 'id' | 'name' | 'category' | 'equipment' | 'image_url' | 'image_url_2' | 'primary_muscles' | 'exercise_type_name' | 'exercise_type_fields'>[]> {
+  if (ids.length === 0) return []
+  const { data } = await exerciseDb
+    .from('exercises')
+    .select('id, name, category, equipment, image_url, image_url_2, primary_muscles, exercise_type_name, exercise_type_fields')
+    .in('id', ids)
   return data ?? []
 }
 

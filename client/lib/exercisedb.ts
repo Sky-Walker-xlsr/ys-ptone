@@ -8,19 +8,31 @@ const exerciseDb = createClient(
 export interface Exercise {
   id: string
   name: string
+  category: string | null
   equipment: string | null
   primary_muscles: string[]
   image_url: string | null
   image_url_2: string | null
+  exercise_type_name:   string | null
+  exercise_type_fields: string[] | null
 }
 
 export async function searchExercises(query: string): Promise<Exercise[]> {
   const { data } = await exerciseDb
     .from('exercises')
-    .select('id, name, equipment, primary_muscles, image_url, image_url_2')
+    .select('id, name, category, equipment, primary_muscles, image_url, image_url_2, exercise_type_name, exercise_type_fields')
     .ilike('name', `%${query}%`)
     .order('name')
     .limit(50)
+  return data ?? []
+}
+
+export async function getExercisesByIds(ids: string[]): Promise<Exercise[]> {
+  if (ids.length === 0) return []
+  const { data } = await exerciseDb
+    .from('exercises')
+    .select('id, name, category, equipment, primary_muscles, image_url, image_url_2, exercise_type_name, exercise_type_fields')
+    .in('id', ids)
   return data ?? []
 }
 
@@ -32,7 +44,7 @@ export async function getAllExercises(opts?: {
 }): Promise<{ data: Exercise[]; count: number }> {
   let query = exerciseDb
     .from('exercises')
-    .select('id, name, equipment, primary_muscles, image_url, image_url_2', { count: 'exact' })
+    .select('id, name, category, equipment, primary_muscles, image_url, image_url_2, exercise_type_name, exercise_type_fields', { count: 'exact' })
     .order('name')
 
   if (opts?.bodyPart)  query = query.contains('primary_muscles', [opts.bodyPart.toLowerCase()])

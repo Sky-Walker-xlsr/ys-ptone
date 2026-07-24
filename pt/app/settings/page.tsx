@@ -7,6 +7,7 @@ import { useTheme } from '@/styles/theme';
 import { dashboard } from '@/locales/dashboard.strings';
 import { createClient } from '@/lib/supabase/client';
 import { logout } from '@/lib/logout';
+import { upsertWeight, getLatestWeight } from '@/lib/supabase/measurements';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -55,6 +56,54 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 
 interface GCalCalendarShape { id: string; summary: string; primary?: boolean; backgroundColor?: string; }
 type GCalState = 'loading' | { email: string | null; defaultCalendarId: string | null } | null;
+
+function BodyWeightInput({ de }: { de: boolean }) {
+  const supabase = createClient();
+  const [weightDraft, setWeightDraft] = useState('');
+  const [lastDate,    setLastDate]    = useState<string | null>(null);
+  const [userId,      setUserId]      = useState<string | null>(null);
+  const [saved,       setSaved]       = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      setUserId(user.id);
+      const latest = await getLatestWeight(supabase, user.id);
+      if (latest) { setWeightDraft(String(latest.weight_kg)); setLastDate(latest.recorded_at); }
+    });
+  }, []);
+
+  async function save() {
+    if (!userId) return;
+    const val = parseFloat(weightDraft);
+    if (isNaN(val) || val <= 0) return;
+    await upsertWeight(supabase, userId, val);
+    setLastDate(new Date().toISOString().slice(0, 10));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+        <input
+          type="number" min="0" step="0.1" value={weightDraft}
+          onChange={e => setWeightDraft(e.target.value)}
+          onBlur={save}
+          placeholder="kg"
+          style={{ width: 80, padding: '5px 10px', borderRadius: 7, fontSize: 16, background: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit' }}
+        />
+        <span style={{ fontSize: 13, color: 'var(--text-subtle)' }}>kg</span>
+      </div>
+      {lastDate && !saved && (
+        <span style={{ fontSize: 11, color: 'var(--text-subtle)' }}>
+          {de ? 'Zuletzt:' : 'Last:'} {new Date(lastDate).toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'short' })}
+        </span>
+      )}
+      {saved && <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 500 }}>✓</span>}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { t, lang, setLang } = useTranslation();
@@ -240,6 +289,15 @@ export default function SettingsPage() {
               }
             />
           )}
+        </Section>
+
+        <Section title={de ? 'Körpergewicht' : 'Body Weight'}>
+          <SettingRow
+            label={de ? 'Aktuelles Gewicht' : 'Current weight'}
+            description={de ? 'Wird bei Körpergewichts-Übungen angezeigt' : 'Shown during bodyweight exercises'}
+            last
+            control={<BodyWeightInput de={de} />}
+          />
         </Section>
 
         <Section title={de ? 'Konto' : 'Account'}>

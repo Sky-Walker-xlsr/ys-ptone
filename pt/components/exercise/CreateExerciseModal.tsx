@@ -3,9 +3,19 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-interface Equipment    { id: string; name: string }
-interface Muscle       { id: string; name: string }
-interface ExerciseType { id: string; name: string; fields: string[] }
+interface Equipment { id: string; name: string }
+interface Muscle    { id: string; name: string }
+
+const EXERCISE_TYPES = [
+  { name: 'Weight & Reps',       fields: ['weight_kg', 'reps'] },
+  { name: 'Bodyweight Reps',     fields: ['reps'] },
+  { name: 'Weighted Bodyweight', fields: ['reps', 'weight_kg'] },
+  { name: 'Assisted Bodyweight', fields: ['reps', 'weight_kg'] },
+  { name: 'Duration',            fields: ['duration_seconds'] },
+  { name: 'Duration & Weight',   fields: ['duration_seconds', 'weight_kg'] },
+  { name: 'Distance & Duration', fields: ['distance_km', 'duration_seconds'] },
+  { name: 'Weight & Distance',   fields: ['weight_kg', 'distance_km'] },
+] as const
 
 interface Props {
   onCreated: (exercise: { id: string; name: string; source: string }) => void
@@ -14,13 +24,12 @@ interface Props {
 
 export default function CreateExerciseModal({ onCreated, onClose }: Props) {
   const [name,               setName]           = useState('')
-  const [exerciseTypeId,     setExerciseTypeId]  = useState('')
+  const [selectedTypeName,   setSelectedTypeName] = useState('')
   const [primaryMuscleId,    setPrimaryMuscleId] = useState('')
   const [secondaryMuscleIds, setSecondaryIds]    = useState<string[]>([])
   const [equipmentId,        setEquipmentId]     = useState('')
   const [equipment,          setEquipment]       = useState<Equipment[]>([])
   const [muscles,            setMuscles]         = useState<Muscle[]>([])
-  const [exerciseTypes,      setExerciseTypes]   = useState<ExerciseType[]>([])
   const [saving,             setSaving]          = useState(false)
   const [userId,             setUserId]          = useState<string | null>(null)
 
@@ -29,12 +38,10 @@ export default function CreateExerciseModal({ onCreated, onClose }: Props) {
     Promise.all([
       supabase.from('equipment').select('id, name').order('name'),
       supabase.from('muscles').select('id, name').order('name'),
-      supabase.from('exercise_types').select('id, name, fields').order('name'),
       supabase.auth.getUser(),
-    ]).then(([eq, mu, et, { data: ud }]) => {
+    ]).then(([eq, mu, { data: ud }]) => {
       setEquipment(eq.data ?? [])
       setMuscles(mu.data ?? [])
-      setExerciseTypes((et.data ?? []).map((d: any) => ({ ...d, fields: Array.isArray(d.fields) ? d.fields : [] })))
       setUserId(ud.user?.id ?? null)
     })
   }, [])
@@ -44,8 +51,9 @@ export default function CreateExerciseModal({ onCreated, onClose }: Props) {
   }
 
   async function handleSubmit() {
-    if (!name.trim() || !userId || !exerciseTypeId) return
+    if (!name.trim() || !userId || !selectedTypeName) return
     setSaving(true)
+    const exType = EXERCISE_TYPES.find(t => t.name === selectedTypeName)!
     const supabase = createClient()
     const { data, error } = await supabase
       .from('exercises')
@@ -53,7 +61,8 @@ export default function CreateExerciseModal({ onCreated, onClose }: Props) {
         name:                 name.trim(),
         source:               'custom',
         user_id:              userId,
-        exercise_type_id:     exerciseTypeId  || null,
+        exercise_type_name:   exType.name,
+        exercise_type_fields: [...exType.fields],
         primary_muscle_id:    primaryMuscleId || null,
         secondary_muscle_ids: secondaryMuscleIds.length ? secondaryMuscleIds : null,
         equipment_id:         equipmentId     || null,
@@ -64,14 +73,14 @@ export default function CreateExerciseModal({ onCreated, onClose }: Props) {
     if (!error && data) onCreated(data)
   }
 
-  const selectedType = exerciseTypes.find(t => t.id === exerciseTypeId)
+  const selectedType = EXERCISE_TYPES.find(t => t.name === selectedTypeName)
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', background: 'var(--bg-page)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontWeight: 500, fontSize: 14, cursor: 'pointer' }}>Cancel</button>
         <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>New Exercise</span>
-        <button onClick={handleSubmit} disabled={!name.trim() || !exerciseTypeId || saving} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14, color: name.trim() && exerciseTypeId ? 'var(--accent)' : 'var(--text-muted)' }}>
+        <button onClick={handleSubmit} disabled={!name.trim() || !selectedTypeName || saving} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14, color: name.trim() && selectedTypeName ? 'var(--accent)' : 'var(--text-muted)' }}>
           {saving ? 'Saving…' : 'Create'}
         </button>
       </div>
@@ -83,8 +92,8 @@ export default function CreateExerciseModal({ onCreated, onClose }: Props) {
 
         <SectionCard label="Exercise Type *">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-            {exerciseTypes.map(t => (
-              <button key={t.id} onClick={() => setExerciseTypeId(t.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: exerciseTypeId === t.id ? '1px solid rgba(124,106,255,0.6)' : '1px solid var(--border)', background: exerciseTypeId === t.id ? 'rgba(124,106,255,0.1)' : 'transparent', cursor: 'pointer' }}>
+            {EXERCISE_TYPES.map(t => (
+              <button key={t.name} onClick={() => setSelectedTypeName(t.name)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: selectedTypeName === t.name ? '1px solid rgba(124,106,255,0.6)' : '1px solid var(--border)', background: selectedTypeName === t.name ? 'rgba(124,106,255,0.1)' : 'transparent', cursor: 'pointer' }}>
                 <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{t.name}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.fields.join(' · ')}</span>
               </button>

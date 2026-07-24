@@ -292,10 +292,15 @@ function PlansTab({ profile, lang, assignedPlans, ownPlans, appointments, onStar
             {ownPlans.map(p => (
               <div key={p.id} style={{ ...card, padding: '16px 20px' }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>{p.title}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>{p.exercise_count} {lang === 'de' ? 'Übungen' : 'exercises'}</div>
-                <button onClick={() => onStartPlan(p.id, p.title)} disabled={starting} style={{ width: '100%', padding: '9px', background: 'rgba(124,106,255,0.12)', border: '1px solid rgba(124,106,255,0.25)', borderRadius: 10, color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {lang === 'de' ? 'Training starten' : 'Start workout'}
-                </button>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>{p.exercise_count} {lang === 'de' ? 'Übungen' : 'exercises'}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => onStartPlan(p.id, p.title)} disabled={starting} style={{ flex: 1, padding: '9px', background: 'rgba(124,106,255,0.12)', border: '1px solid rgba(124,106,255,0.25)', borderRadius: 10, color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {lang === 'de' ? 'Training starten' : 'Start workout'}
+                  </button>
+                  <a href={`/plans/${p.id}/edit`} style={{ padding: '9px 14px', background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-muted)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+                    {lang === 'de' ? 'Bearbeiten' : 'Edit'}
+                  </a>
+                </div>
               </div>
             ))}
           </div>
