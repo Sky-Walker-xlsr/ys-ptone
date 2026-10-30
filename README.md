@@ -1,3 +1,5 @@
+> **TODO:** Dieses README muss ich noch Ã¼berarbeiten.
+
 # PTOne — Full Application Documentation
 
 > Personal Training Management Platform  

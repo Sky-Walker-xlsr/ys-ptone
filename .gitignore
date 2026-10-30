@@ -1,3 +1,7 @@
 # global gitignore!
 .wrangler
 .open-next
+
+# Persoenliche Daten und Logs
+assets/journal_sya.*
+*.log
